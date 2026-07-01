@@ -468,6 +468,10 @@
 </header>
 
 <div class="period-badge" id="period-display">載入中…</div>
+<div id="sync-status" style="display:none;text-align:center;padding:5px 16px;font-size:12px;background:#f0faf4;border-bottom:1px solid #d4edda;color:#888">
+  <span id="sync-icon" style="color:#52c47a;font-weight:700;margin-right:4px">✓ 已同步</span>
+  <span id="sync-time"></span>
+</div>
 
 <!-- Coach login -->
 <div id="coach-select-wrap">
@@ -819,9 +823,16 @@ let currentCoach = null;
 let gasUrl = localStorage.getItem(GAS_KEY) || 'https://script.google.com/macros/s/AKfycbwgPGSLd_C3Zg-sdkwofaHpe35i90gyoAOq_9UGlhFUxiS7-5EuXXjesx82KLkX59FxWQ/exec';
 let coaches = JSON.parse(localStorage.getItem(COACHES_KEY) || 'null') || DEFAULT_COACHES;
 let courseTypes = JSON.parse(localStorage.getItem(COURSE_TYPES_KEY) || 'null') || [...DEFAULT_COURSE_TYPES];
-let benchmarks = JSON.parse(localStorage.getItem(BENCH_KEY) || '{}');
+let benchmarks = JSON.parse(localStorage.getItem(BENCH_KEY) || 'null') || {"Carol": {"target": 0, "bonus": 0}, "Adam": {"target": 0, "bonus": 0}, "Kenny": {"target": 110, "bonus": 140}, "Joanne": {"target": 80, "bonus": 120}, "Vis": {"target": 100, "bonus": 120}, "Kevin": {"target": 100, "bonus": 120}, "Allen": {"target": 70, "bonus": 80}, "Sean": {"target": 80, "bonus": 100}, "Ava": {"target": 80, "bonus": 100}, "Howard": {"target": 80, "bonus": 100}, "Ella": {"target": 70, "bonus": 80}, "Elly": {"target": 0, "bonus": 0}, "Gary": {"target": 0, "bonus": 0}, "Foin": {"target": 0, "bonus": 0}, "William": {"target": 0, "bonus": 0}};
+// 寫入預設值（如果 localStorage 是空的）
+if (!localStorage.getItem(BENCH_KEY)) {
+  localStorage.setItem(BENCH_KEY, JSON.stringify(benchmarks));
+}
 // benchHistory: { coachName: [{target, bonus, from, note}] }
-let benchHistory   = JSON.parse(localStorage.getItem(BENCH_HISTORY_KEY) || '{}');
+let benchHistory   = JSON.parse(localStorage.getItem(BENCH_HISTORY_KEY) || 'null') || {"Kenny": [{"target": 110, "bonus": 140, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Joanne": [{"target": 80, "bonus": 120, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Vis": [{"target": 100, "bonus": 120, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Kevin": [{"target": 100, "bonus": 120, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Allen": [{"target": 70, "bonus": 80, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Sean": [{"target": 80, "bonus": 100, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Ava": [{"target": 80, "bonus": 100, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Howard": [{"target": 80, "bonus": 100, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Ella": [{"target": 70, "bonus": 80, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}]};
+if (!localStorage.getItem(BENCH_HISTORY_KEY)) {
+  localStorage.setItem(BENCH_HISTORY_KEY, JSON.stringify(benchHistory));
+}
 // fixedClasses: { coachName: [{name, count}] }
 let fixedClasses   = JSON.parse(localStorage.getItem(FIXED_CLASSES_KEY) || '{}');
 let adminPw = localStorage.getItem(ADMIN_PW_KEY) || 'carolhope2026';
@@ -997,9 +1008,19 @@ async function syncSettingsFromGas() {
       localStorage.setItem(FIXED_CLASSES_KEY, JSON.stringify(fixedClasses));
       if (JSON.stringify(fixedClasses) !== prev) updated = true;
     }
+    if (d.benchmarks && Object.keys(d.benchmarks).length > 0) {
+      benchmarks = d.benchmarks;
+      localStorage.setItem(BENCH_KEY, JSON.stringify(benchmarks));
+    }
+    if (d.benchHistory && Object.keys(d.benchHistory).length > 0) {
+      benchHistory = d.benchHistory;
+      localStorage.setItem(BENCH_HISTORY_KEY, JSON.stringify(benchHistory));
+    }
+    showSyncStatus(true);
     return updated;
   } catch(e) {
     // timeout 或網路失敗，沿用快取
+    showSyncStatus(false);
     return false;
   }
 }
@@ -1965,8 +1986,9 @@ function saveBenchmarks() {
   benchmarks = newBench;
   localStorage.setItem(BENCH_KEY, JSON.stringify(benchmarks));
   localStorage.setItem(BENCH_HISTORY_KEY, JSON.stringify(benchHistory));
+  syncSettingsToGas(); // 推送到 GAS，所有裝置同步
   showToast('✅ 設定已儲存，歷史已記錄');
-  renderBenchSettings(); // refresh to show history
+  renderBenchSettings();
 }
 
 function saveGasUrl() {
@@ -2081,6 +2103,7 @@ async function postGas(payload) {
   if (d.status !== 'ok') throw new Error(d.message || '伺服器錯誤');
   invalidateCache(payload.periodKey);
   saveLocal(payload);
+  showSyncStatus(true, '回報已儲存');
 }
 
 async function syncCoachesToGas() {
@@ -2092,8 +2115,10 @@ async function syncSettingsToGas() {
   // fire-and-forget：不等回應，不阻塞 UI
   fetch(gasUrl, {
     method: 'POST',
-    body: JSON.stringify({ type: 'settings', coaches, courseTypes, fixedClasses })
-  }).catch(() => {});
+    body: JSON.stringify({ type: 'settings', coaches, courseTypes, fixedClasses, benchmarks, benchHistory })
+  }).then(r => r.json()).then(d => {
+    if (d.status === 'ok') showSyncStatus(true);
+  }).catch(() => showSyncStatus(false));
 }
 
 function aggregateByCoach(data) {
@@ -2222,7 +2247,7 @@ function doGet(e) {
     const s = ss.getSheetByName('課程回報');
     if (!s || s.getLastRow() < 2) return json({ status: 'ok', data: [] });
     const [h, ...rows] = s.getDataRange().getValues();
-    const all = rows.map(r => Object.fromEntries(h.map((k, i) => [k, r[i] ?? ''])));
+    const all = rows.map(r => Object.fromEntries(h.map((k, i) => [k, r[i] || ''])));
     const filtered = period ? all.filter(r => r['期別'] === period) : all;
     const result = filtered.map(r => ({
       coach: r['教練'],
@@ -2257,9 +2282,9 @@ function json(o) {
 // ══════════════════════════════════════════
 
 async function getExportData() {
-  const fromKey = document.getElementById('export-period-from')?.value;
-  const toKey   = document.getElementById('export-period-to')?.value;
-  const scope   = document.getElementById('export-scope')?.value || 'current';
+  const fromKey = (document.getElementById('export-period-from') ? document.getElementById('export-period-from').value : '');
+  const toKey   = (document.getElementById('export-period-to') ? document.getElementById('export-period-to').value : '');
+  const scope   = (document.getElementById('export-scope') ? document.getElementById('export-scope').value : 'current');
   const chartSel = document.getElementById('chart-coach-sel');
   const choice  = chartSel ? chartSel.value : '__all__';
 
@@ -2349,8 +2374,8 @@ async function exportExcel() {
   ];
   XLSX.utils.book_append_sheet(wb, ws2, '週次明細');
 
-  const scope = document.getElementById('export-scope')?.value;
-  const choice = document.getElementById('chart-coach-sel')?.value;
+  const scope = (document.getElementById('export-scope') ? document.getElementById('export-scope').value : '');
+  const choice = (document.getElementById('chart-coach-sel') ? document.getElementById('chart-coach-sel').value : '__all__');
   const label = scope === 'all_coaches' ? '全體' : (choice === '__all__' ? '全體' : choice);
   const fname = `HOPE課程統計_${label}_${new Date().toISOString().slice(0,10)}.xlsx`;
 
@@ -2367,20 +2392,20 @@ async function exportPDF() {
   const status = document.getElementById('export-status');
   if (status) status.textContent = '⏳ 產生 PDF 中…';
 
-  const scope = document.getElementById('export-scope')?.value;
-  const choice = document.getElementById('chart-coach-sel')?.value;
+  const scope = (document.getElementById('export-scope') ? document.getElementById('export-scope').value : '');
+  const choice = (document.getElementById('chart-coach-sel') ? document.getElementById('chart-coach-sel').value : '__all__');
   const reportLabel = scope === 'all_coaches' ? '全體教練' : (choice === '__all__' ? '全體教練' : choice);
-  const fromKey = document.getElementById('export-period-from')?.value;
-  const toKey   = document.getElementById('export-period-to')?.value;
+  const fromKey = (document.getElementById('export-period-from') ? document.getElementById('export-period-from').value : '');
+  const toKey   = (document.getElementById('export-period-to') ? document.getElementById('export-period-to').value : '');
 
   // Build PDF HTML and open in new window for print
   const periodCols = rangeKeys.map(k => periodLabel(k));
 
   const summaryHeader = ['教練', ...periodCols, '合計', '達標標準', '獎金標準'];
-  const summaryRows = rows.map(r => summaryHeader.map(h => r[h] ?? ''));
+  const summaryRows = rows.map(r => summaryHeader.map(h => r[h] || ''));
 
   const detailHeader = ['教練','期別','週次起','週次訖','課程明細','本週總堂','備註'];
-  const detailRows2 = detailRows.map(r => detailHeader.map(h => r[h] ?? ''));
+  const detailRows2 = detailRows.map(r => detailHeader.map(h => r[h] || ''));
 
   const tdStyle = 'border:1px solid #ccc;padding:5px 8px;font-size:11px;';
   const thStyle = 'border:1px solid #aaa;padding:5px 8px;font-size:11px;background:#1a3a2a;color:#fff;font-weight:700;';
@@ -2453,6 +2478,28 @@ function showToast(msg, duration = 2500) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function showSyncStatus(success = true, label = '') {
+  const bar   = document.getElementById('sync-status');
+  const icon  = document.getElementById('sync-icon');
+  const time  = document.getElementById('sync-time');
+  if (!bar) return;
+  const now = new Date();
+  const ts = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  if (success) {
+    bar.style.background  = '#f0faf4';
+    bar.style.borderColor = '#d4edda';
+    icon.style.color = '#52c47a';
+    icon.textContent = '✓ 已同步' + (label ? `（${label}）` : '');
+  } else {
+    bar.style.background  = '#fff8f0';
+    bar.style.borderColor = '#fde8cc';
+    icon.style.color = '#e67e22';
+    icon.textContent = '⚠ 同步失敗，使用本機快取';
+  }
+  time.textContent = ts;
+  bar.style.display = '';
 }
 
 // ══════════════════════════════════════════
