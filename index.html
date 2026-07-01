@@ -810,7 +810,7 @@ const COURSE_TYPES_KEY = 'hope_classes_course_types';
 const BENCH_HISTORY_KEY = 'hope_classes_bench_history';
 const FIXED_CLASSES_KEY  = 'hope_classes_fixed';  // { coachName: [{name, count}] }
 
-const DEFAULT_COACHES = ['Carol','Adam','Kenny','Joanne','Vis','Kevin','Allen','Sean','Ava','Howard','Ella','Elly','Gary','Foin','William'];
+const DEFAULT_COACHES = ['Carol 葉欣萍','Adam 林元騁','Kenny 蔡岷宏','Joanne 蔡喬安','Vis 方建雄','Kevin 江侑學','Allen 張瀚元','Sean 黃郁翔','Ava 林冠妤','Howard 鄧庭皓','Ella 吳雨樵','Elly 吳以勤','Gary','Foin','William'];
 const DEFAULT_COURSE_TYPES = [
   'HOPE 系統課程',
   '下場班(2人/3人套組) 未簽課',
@@ -943,8 +943,11 @@ async function initApp() {
   document.getElementById('admin-login-wrap').style.display = 'none';
   document.getElementById('main-app').style.display = '';
   document.getElementById('btn-logout').style.display = '';
+  updatePeriodDisplay();
 
-  // 立即用 localStorage 快取啟動（零等待）
+  // 先同步 GAS（最多等 5 秒），確保教練名單、課程項目都是最新的
+  await syncSettingsFromGas();
+
   if (currentRole === 'coach') {
     document.getElementById('coach-nav').style.display = 'flex';
     document.getElementById('admin-nav').style.display = 'none';
@@ -954,18 +957,6 @@ async function initApp() {
     document.getElementById('admin-nav').style.display = 'flex';
     initAdminApp();
   }
-  updatePeriodDisplay();
-
-  // 背景靜默同步 GAS 最新設定（不阻塞 UI）
-  syncSettingsFromGas().then(updated => {
-    if (updated && currentRole === 'coach') {
-      // 設定有更新才重新初始化教練頁
-      initCoachApp();
-    } else if (updated && currentRole === 'admin') {
-      // 行政頁面靜默更新選單
-      buildCoachSelect();
-    }
-  });
 }
 
 async function syncSettingsFromGas() {
@@ -2527,7 +2518,9 @@ function showSyncStatus(success = true, label = '') {
 // ══════════════════════════════════════════
 // INIT ON LOAD
 // ══════════════════════════════════════════
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
+  // 頁面載入時先從 GAS 同步教練名單，讓選單顯示最新資料
+  await syncSettingsFromGas();
   buildCoachSelect();
   updatePeriodDisplay();
   showCoachLogin();
