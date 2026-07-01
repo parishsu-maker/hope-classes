@@ -829,6 +829,11 @@ let courseTypes = JSON.parse(localStorage.getItem(COURSE_TYPES_KEY) || 'null') |
 let benchmarks   = JSON.parse(localStorage.getItem(BENCH_KEY) || '{}');
 // benchHistory: { coachName: [{target, bonus, from, note}] }
 let benchHistory   = JSON.parse(localStorage.getItem(BENCH_HISTORY_KEY) || '{}');
+// fixedClasses: { coachName: [{name, count}] }
+let fixedClasses   = JSON.parse(localStorage.getItem(FIXED_CLASSES_KEY) || '{}');
+let adminPw = localStorage.getItem(ADMIN_PW_KEY) || 'carolhope2026';
+let allData = []; // fetched from GAS
+let chartInstance = null;
 
 function getPeriodKey(date) {
   const d = date || new Date();
@@ -1828,7 +1833,7 @@ function saveFixedClasses() {
   fixedClasses = newFixed;
   localStorage.setItem(FIXED_CLASSES_KEY, JSON.stringify(fixedClasses));
   syncSettingsToGas();
-  showToast('✅ 固定課程已儲存');
+  showToast('✅ 固定課程已儲存，同步中…');
 }
 
 function renderBenchSettings() {
@@ -1954,7 +1959,7 @@ function saveBenchmarks() {
   localStorage.setItem(BENCH_KEY, JSON.stringify(benchmarks));
   localStorage.setItem(BENCH_HISTORY_KEY, JSON.stringify(benchHistory));
   syncSettingsToGas(); // 推送到 GAS，所有裝置同步
-  showToast('✅ 設定已儲存，歷史已記錄');
+  showToast('✅ 課堂標準已儲存，同步中…');
   renderBenchSettings();
 }
 
@@ -2099,13 +2104,20 @@ async function syncCoachesToGas() {
 
 async function syncSettingsToGas() {
   if (!gasUrl) return;
-  // fire-and-forget：不等回應，不阻塞 UI
   fetch(gasUrl, {
     method: 'POST',
     body: JSON.stringify({ type: 'settings', coaches, courseTypes, fixedClasses, benchmarks, benchHistory })
   }).then(r => r.json()).then(d => {
-    if (d.status === 'ok') showSyncStatus(true);
-  }).catch(() => showSyncStatus(false));
+    if (d.status === 'ok') {
+      showSyncStatus(true);
+    } else {
+      showSyncStatus(false);
+      showToast('⚠️ 同步失敗，請確認 GAS 已部署最新版本');
+    }
+  }).catch(() => {
+    showSyncStatus(false);
+    showToast('⚠️ 網路錯誤，設定已存本機，請稍後重試');
+  });
 }
 
 function aggregateByCoach(data) {
