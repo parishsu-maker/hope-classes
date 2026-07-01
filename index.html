@@ -512,7 +512,8 @@
     <div class="nav-tab active" onclick="switchTab('overview')">📊 總覽</div>
     <div class="nav-tab" onclick="switchTab('detail')">👤 教練明細</div>
     <div class="nav-tab" onclick="switchTab('chart')">📈 圖表</div>
-    <div class="nav-tab" onclick="switchTab('settings')">⚙️ 設定</div>
+    <div class="nav-tab" onclick="switchTab('settings')">⚙️ 後台設定</div>
+    <div class="nav-tab" onclick="switchTab('devsettings')">🔧 程式設定</div>
   </div>
 
   <!-- ── Coach: Report page ── -->
@@ -678,18 +679,6 @@
   <!-- ── Admin: Settings ── -->
   <div class="page" id="page-settings">
 
-    <div class="card">
-      <div class="card-title">🔗 GAS 網址設定</div>
-      <div class="field-group">
-        <label class="field-label">Google Apps Script 網址</label>
-        <input type="text" id="gas-url" placeholder="https://script.google.com/macros/s/…/exec">
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost btn-sm" onclick="testGas()">測試連線</button>
-        <button class="btn btn-primary btn-sm" onclick="saveGasUrl()">儲存</button>
-      </div>
-      <div id="gas-test-result" style="margin-top:10px;font-size:12px"></div>
-    </div>
 
     <div class="card">
       <div class="card-title">👥 教練名單管理</div>
@@ -734,6 +723,27 @@
         </div>
         <button class="btn btn-primary" style="width:100%" onclick="saveBenchmarks()">💾 儲存並記錄歷史</button>
       </div>
+    </div>
+
+
+
+  </div>
+
+
+  <!-- ── Admin: Dev Settings ── -->
+  <div class="page" id="page-devsettings">
+
+    <div class="card">
+      <div class="card-title">🔗 GAS 網址設定</div>
+      <div class="field-group">
+        <label class="field-label">Google Apps Script 網址</label>
+        <input type="text" id="gas-url" placeholder="https://script.google.com/macros/s/…/exec">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="testGas()">測試連線</button>
+        <button class="btn btn-primary btn-sm" onclick="saveGasUrl()">儲存</button>
+      </div>
+      <div id="gas-test-result" style="margin-top:10px;font-size:12px"></div>
     </div>
 
     <div class="card">
@@ -920,9 +930,7 @@ async function initApp() {
   document.getElementById('main-app').style.display = '';
   document.getElementById('btn-logout').style.display = '';
 
-  // 先從 GAS 同步最新設定（課程項目、教練名單、固定課程）
-  await syncSettingsFromGas();
-
+  // 立即用 localStorage 快取啟動（零等待）
   if (currentRole === 'coach') {
     document.getElementById('coach-nav').style.display = 'flex';
     document.getElementById('admin-nav').style.display = 'none';
@@ -932,33 +940,54 @@ async function initApp() {
     document.getElementById('admin-nav').style.display = 'flex';
     initAdminApp();
   }
-
   updatePeriodDisplay();
+
+  // 背景靜默同步 GAS 最新設定（不阻塞 UI）
+  syncSettingsFromGas().then(updated => {
+    if (updated && currentRole === 'coach') {
+      // 設定有更新才重新初始化教練頁
+      initCoachApp();
+    } else if (updated && currentRole === 'admin') {
+      // 行政頁面靜默更新選單
+      buildCoachSelect();
+    }
+  });
 }
 
 async function syncSettingsFromGas() {
-  if (!gasUrl) return;
+  if (!gasUrl) return false;
   try {
-    const r = await fetch(gasUrl + '?type=settings');
+    // 5 秒 timeout，避免 GAS 冷啟動拖太久
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const r = await fetch(gasUrl + '?type=settings', { signal: controller.signal });
+    clearTimeout(timer);
     const d = await r.json();
-    if (d.status !== 'ok') return;
+    if (d.status !== 'ok') return false;
 
+    let updated = false;
     if (d.courseTypes && d.courseTypes.length > 0) {
+      const prev = JSON.stringify(courseTypes);
       courseTypes = d.courseTypes;
       localStorage.setItem(COURSE_TYPES_KEY, JSON.stringify(courseTypes));
+      if (JSON.stringify(courseTypes) !== prev) updated = true;
     }
     if (d.coaches && d.coaches.length > 0) {
+      const prev = JSON.stringify(coaches);
       coaches = d.coaches;
       localStorage.setItem(COACHES_KEY, JSON.stringify(coaches));
-      buildCoachSelect();
+      if (JSON.stringify(coaches) !== prev) updated = true;
     }
     if (d.fixedClasses) {
+      const prev = JSON.stringify(fixedClasses);
       fixedClasses = d.fixedClasses;
       localStorage.setItem(FIXED_CLASSES_KEY, JSON.stringify(fixedClasses));
+      if (JSON.stringify(fixedClasses) !== prev) updated = true;
     }
+    return updated;
   } catch(e) {
-    // 網路失敗時沿用 localStorage 快取，不影響使用
-    console.log('Settings sync failed, using local cache:', e.message);
+    // timeout 或網路失敗，沿用快取
+    return false;
   }
 }
 
@@ -978,11 +1007,12 @@ function switchTab(id) {
   nav.forEach(t => t.classList.remove('active'));
   event.target.classList.add('active');
 
-  if (id === 'overview')  loadOverview();
-  if (id === 'detail')    loadDetailCoachList();
-  if (id === 'chart')     renderChart();
-  if (id === 'settings')  initSettings();
-  if (id === 'myhistory') loadMyHistory();
+  if (id === 'overview')    loadOverview();
+  if (id === 'detail')      loadDetailCoachList();
+  if (id === 'chart')       renderChart();
+  if (id === 'settings')    initSettings();
+  if (id === 'devsettings') initDevSettings();
+  if (id === 'myhistory')   loadMyHistory();
 }
 
 // ══════════════════════════════════════════
@@ -1663,6 +1693,13 @@ function drawChart(labels, data, label, coachKey) {
 // ══════════════════════════════════════════
 // SETTINGS
 // ══════════════════════════════════════════
+function initDevSettings() {
+  const el = document.getElementById('gas-url');
+  if (el) el.value = gasUrl;
+  const codeEl = document.getElementById('gas-code-display');
+  if (codeEl) codeEl.textContent = getGasCode();
+}
+
 function initSettings() {
   document.getElementById('gas-url').value = gasUrl;
 
@@ -1966,21 +2003,51 @@ function loadLocal(periodKey) {
 }
 
 const _cache = {};
+const _cacheTime = {};
+const CACHE_TTL = 30000; // 30 秒內不重複請求同一期
+
 async function fetchReports(periodKey) {
-  if (_cache[periodKey] !== undefined) return _cache[periodKey];
+  const now = Date.now();
+  // 有快取且在 TTL 內，直接回傳
+  if (_cache[periodKey] !== undefined && (now - (_cacheTime[periodKey]||0)) < CACHE_TTL) {
+    return _cache[periodKey];
+  }
   if (!gasUrl) {
     const local = loadLocal(periodKey);
     _cache[periodKey] = local;
+    _cacheTime[periodKey] = now;
     return local;
   }
+  // 有舊快取先回傳，背景更新
+  if (_cache[periodKey] !== undefined) {
+    _refreshReports(periodKey);
+    return _cache[periodKey];
+  }
+  // 第一次請求，等待結果
+  return await _refreshReports(periodKey);
+}
+
+async function _refreshReports(periodKey) {
   try {
-    const r = await fetch(gasUrl + `?type=class_reports&period=${periodKey}`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const r = await fetch(gasUrl + \`?type=class_reports&period=\${periodKey}\`, { signal: controller.signal });
+    clearTimeout(timer);
     const d = await r.json();
     _cache[periodKey] = d.data || [];
+    _cacheTime[periodKey] = Date.now();
+    // 同步備份到 localStorage
+    const all = JSON.parse(localStorage.getItem(localDataKey) || '[]')
+      .filter(x => x.periodKey !== periodKey);
+    localStorage.setItem(localDataKey, JSON.stringify([...all, ..._cache[periodKey]]));
     return _cache[periodKey];
   } catch(e) {
     const local = loadLocal(periodKey);
-    return local;
+    if (!_cache[periodKey]) {
+      _cache[periodKey] = local;
+      _cacheTime[periodKey] = Date.now();
+    }
+    return _cache[periodKey];
   }
 }
 
@@ -1989,14 +2056,18 @@ function invalidateCache(periodKey) {
 }
 
 async function postGas(payload) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
   const r = await fetch(gasUrl, {
     method: 'POST',
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: controller.signal
   });
+  clearTimeout(timer);
   const d = await r.json();
   if (d.status !== 'ok') throw new Error(d.message || '伺服器錯誤');
   invalidateCache(payload.periodKey);
-  saveLocal(payload); // also save locally as backup
+  saveLocal(payload);
 }
 
 async function syncCoachesToGas() {
@@ -2005,19 +2076,11 @@ async function syncCoachesToGas() {
 
 async function syncSettingsToGas() {
   if (!gasUrl) return;
-  try {
-    await fetch(gasUrl, {
-      method: 'POST',
-      body: JSON.stringify({
-        type: 'settings',
-        coaches,
-        courseTypes,
-        fixedClasses
-      })
-    });
-  } catch(e) {
-    console.log('Settings sync to GAS failed:', e.message);
-  }
+  // fire-and-forget：不等回應，不阻塞 UI
+  fetch(gasUrl, {
+    method: 'POST',
+    body: JSON.stringify({ type: 'settings', coaches, courseTypes, fixedClasses })
+  }).catch(() => {});
 }
 
 function aggregateByCoach(data) {
