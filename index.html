@@ -738,7 +738,10 @@
           <label style="font-size:12px;color:var(--text-muted);font-weight:700;display:block;margin-bottom:4px">本次調整備註（選填）</label>
           <input type="text" id="bench-save-note" placeholder="例：Q3 晉升調整、新教練起始標準…" style="font-size:13px">
         </div>
-        <button class="btn btn-primary" style="width:100%" onclick="saveBenchmarks()">💾 儲存並記錄歷史</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" style="flex:1" onclick="saveBenchmarks()">💾 儲存並記錄歷史</button>
+          <button class="btn btn-ghost" style="flex:none;white-space:nowrap" onclick="pushBenchmarksToGas()" title="強制把目前數字推送到GAS">☁️ 推送GAS</button>
+        </div>
       </div>
     </div>
 
@@ -823,56 +826,15 @@ let currentCoach = null;
 let gasUrl = localStorage.getItem(GAS_KEY) || 'https://script.google.com/macros/s/AKfycbwgPGSLd_C3Zg-sdkwofaHpe35i90gyoAOq_9UGlhFUxiS7-5EuXXjesx82KLkX59FxWQ/exec';
 let coaches = JSON.parse(localStorage.getItem(COACHES_KEY) || 'null') || DEFAULT_COACHES;
 let courseTypes = JSON.parse(localStorage.getItem(COURSE_TYPES_KEY) || 'null') || [...DEFAULT_COURSE_TYPES];
-let benchmarks = JSON.parse(localStorage.getItem(BENCH_KEY) || 'null') || {"Carol": {"target": 0, "bonus": 0}, "Adam": {"target": 0, "bonus": 0}, "Kenny": {"target": 110, "bonus": 140}, "Joanne": {"target": 80, "bonus": 120}, "Vis": {"target": 100, "bonus": 120}, "Kevin": {"target": 100, "bonus": 120}, "Allen": {"target": 70, "bonus": 80}, "Sean": {"target": 80, "bonus": 100}, "Ava": {"target": 80, "bonus": 100}, "Howard": {"target": 80, "bonus": 100}, "Ella": {"target": 70, "bonus": 80}, "Elly": {"target": 0, "bonus": 0}, "Gary": {"target": 0, "bonus": 0}, "Foin": {"target": 0, "bonus": 0}, "William": {"target": 0, "bonus": 0}};
-// 寫入預設值（如果 localStorage 是空的）
-if (!localStorage.getItem(BENCH_KEY)) {
-  localStorage.setItem(BENCH_KEY, JSON.stringify(benchmarks));
-}
+let benchmarks   = JSON.parse(localStorage.getItem(BENCH_KEY) || '{}');
 // benchHistory: { coachName: [{target, bonus, from, note}] }
-let benchHistory   = JSON.parse(localStorage.getItem(BENCH_HISTORY_KEY) || 'null') || {"Kenny": [{"target": 110, "bonus": 140, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Joanne": [{"target": 80, "bonus": 120, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Vis": [{"target": 100, "bonus": 120, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Kevin": [{"target": 100, "bonus": 120, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Allen": [{"target": 70, "bonus": 80, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Sean": [{"target": 80, "bonus": 100, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Ava": [{"target": 80, "bonus": 100, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Howard": [{"target": 80, "bonus": 100, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}], "Ella": [{"target": 70, "bonus": 80, "from": "2026-06", "savedAt": "2026-07-01T00:00:00.000Z", "note": "初始設定"}]};
-if (!localStorage.getItem(BENCH_HISTORY_KEY)) {
-  localStorage.setItem(BENCH_HISTORY_KEY, JSON.stringify(benchHistory));
-}
-// fixedClasses: { coachName: [{name, count}] }
-let fixedClasses   = JSON.parse(localStorage.getItem(FIXED_CLASSES_KEY) || 'null') || {"Carol": [{"name": "HOPE 系統課程", "count": ""}, {"name": "下場班(2人/3人套組) 未簽課", "count": ""}, {"name": "小Ava下場班", "count": ""}]};
-if (!localStorage.getItem(FIXED_CLASSES_KEY)) {
-  localStorage.setItem(FIXED_CLASSES_KEY, JSON.stringify(fixedClasses));
-}
-let adminPw = localStorage.getItem(ADMIN_PW_KEY) || 'carolhope2026';
-let allData = []; // fetched from GAS
-let chartInstance = null;
+let benchHistory   = JSON.parse(localStorage.getItem(BENCH_HISTORY_KEY) || '{}');
 
-// ══════════════════════════════════════════
-// BENCHMARK HELPERS
-// ══════════════════════════════════════════
-// Return the benchmark that was active at the START of a given period key (YYYY-MM)
-// A period YYYY-MM starts on YYYY-MM-21 (previous month's 21st)
-// "from" in history is stored as a periodKey (YYYY-MM) meaning "effective from this period onward"
-function getBenchForPeriod(coach, periodKey) {
-  const history = benchHistory[coach];
-  if (!history || history.length === 0) {
-    // Fall back to current benchmarks
-    return benchmarks[coach] || { target: 0, bonus: 0 };
-  }
-  // Find the latest entry whose "from" <= periodKey
-  const sorted = [...history].sort((a, b) => a.from.localeCompare(b.from));
-  let match = null;
-  for (const entry of sorted) {
-    if (entry.from <= periodKey) match = entry;
-  }
-  if (!match) match = sorted[0]; // use earliest if all are newer
-  return match;
-}
-
-// ══════════════════════════════════════════
-// PERIOD LOGIC  (21st prev → 20th this month)
-// ══════════════════════════════════════════
 function getPeriodKey(date) {
   const d = date || new Date();
   const y = d.getFullYear();
   const m = d.getMonth() + 1;
   if (d.getDate() <= 20) {
-    // belongs to period that started on prev month's 21st
     const pm = m === 1 ? 12 : m - 1;
     const py = m === 1 ? y - 1 : y;
     return `${py}-${String(pm).padStart(2,'0')}`;
@@ -1013,6 +975,7 @@ async function syncSettingsFromGas() {
       if (JSON.stringify(fixedClasses) !== prev) updated = true;
     }
     if (Object.prototype.hasOwnProperty.call(d, 'benchmarks') && Object.keys(d.benchmarks).length > 0) {
+      // 只有 GAS 有實際資料才覆蓋（避免 GAS 尚未儲存過時用空物件蓋掉預設值）
       benchmarks = d.benchmarks;
       localStorage.setItem(BENCH_KEY, JSON.stringify(benchmarks));
     }
@@ -1993,6 +1956,26 @@ function saveBenchmarks() {
   syncSettingsToGas(); // 推送到 GAS，所有裝置同步
   showToast('✅ 設定已儲存，歷史已記錄');
   renderBenchSettings();
+}
+
+async function pushBenchmarksToGas() {
+  if (!gasUrl) { showToast('請先設定 GAS 網址'); return; }
+  showToast('⏳ 推送中…');
+  try {
+    const r = await fetch(gasUrl, {
+      method: 'POST',
+      body: JSON.stringify({ type: 'settings', coaches, courseTypes, fixedClasses, benchmarks, benchHistory })
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      showSyncStatus(true, '標準已推送');
+      showToast('✅ 課堂標準已推送到 GAS');
+    } else {
+      showToast('❌ 推送失敗');
+    }
+  } catch(e) {
+    showToast('❌ 推送失敗：' + e.message);
+  }
 }
 
 function saveGasUrl() {
