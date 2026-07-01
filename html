@@ -1,0 +1,2246 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HOPE 課程回報系統</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --green-dark:  #1a3a2a;
+    --green-mid:   #2d6a4f;
+    --green-soft:  #40916c;
+    --green-light: #74c69d;
+    --cream:       #f8f5ee;
+    --sand:        #e9e4d8;
+    --gold:        #c9a84c;
+    --gold-light:  #f0d580;
+    --alert:       #c0392b;
+    --warn:        #e67e22;
+    --text-main:   #1c1c1c;
+    --text-muted:  #6b7c6b;
+    --radius:      10px;
+    --shadow:      0 2px 12px rgba(26,58,42,0.10);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Helvetica Neue', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+    background: var(--cream);
+    color: var(--text-main);
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--green-dark);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .header-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-mark {
+    width: 36px;
+    height: 36px;
+    background: var(--gold);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 14px;
+    color: var(--green-dark);
+    letter-spacing: -0.5px;
+  }
+  .header-title {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .header-sub {
+    color: var(--green-light);
+    font-size: 11px;
+    margin-top: 1px;
+  }
+  #btn-logout {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    display: none;
+  }
+  #btn-logout:hover { background: rgba(255,255,255,0.22); }
+
+  /* ── Period badge ── */
+  .period-badge {
+    background: var(--green-dark);
+    color: var(--gold-light);
+    font-size: 12px;
+    text-align: center;
+    padding: 6px 16px;
+    letter-spacing: 0.3px;
+  }
+
+  /* ── Nav tabs ── */
+  .nav-tabs {
+    display: flex;
+    background: #fff;
+    border-bottom: 2px solid var(--sand);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav-tab {
+    flex: none;
+    padding: 12px 18px;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    white-space: nowrap;
+    transition: color 0.15s;
+    user-select: none;
+  }
+  .nav-tab.active {
+    color: var(--green-mid);
+    border-bottom-color: var(--green-mid);
+    font-weight: 600;
+  }
+
+  /* ── Pages ── */
+  .page { display: none; padding: 16px; max-width: 700px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  /* ── Cards ── */
+  .card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--green-dark);
+    margin-bottom: 14px;
+    letter-spacing: 0.3px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── Forms ── */
+  label.field-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    letter-spacing: 0.3px;
+  }
+  input[type=text], input[type=number], input[type=date], select, textarea {
+    width: 100%;
+    border: 1.5px solid var(--sand);
+    border-radius: 7px;
+    padding: 9px 12px;
+    font-size: 14px;
+    color: var(--text-main);
+    background: #fafaf8;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--green-soft);
+    background: #fff;
+  }
+  .field-group { margin-bottom: 14px; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s, transform 0.1s;
+    letter-spacing: 0.3px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--green-mid); color: #fff; }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-gold { background: var(--gold); color: var(--green-dark); }
+  .btn-ghost {
+    background: transparent;
+    border: 1.5px solid var(--green-mid);
+    color: var(--green-mid);
+  }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-danger { background: var(--alert); color: #fff; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Coach select ── */
+  #coach-select-wrap {
+    max-width: 400px;
+    margin: 60px auto 0;
+    padding: 30px 16px;
+    text-align: center;
+  }
+  .welcome-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+  .welcome-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--green-dark);
+    margin-bottom: 6px;
+  }
+  .welcome-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+
+  /* ── Admin login ── */
+  #admin-login-wrap {
+    max-width: 400px;
+    margin: 60px auto 0;
+    padding: 30px 16px;
+  }
+
+  /* ── Class rows in form ── */
+  .class-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    margin-bottom: 8px;
+  }
+  .class-row .class-name { flex: 2; }
+  .class-row .class-count { flex: 1; }
+  .class-row .remove-row {
+    flex: none;
+    width: 32px;
+    height: 36px;
+    background: #fce4e4;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    color: var(--alert);
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Summary table ── */
+  .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .summary-table th {
+    background: var(--green-dark);
+    color: #fff;
+    padding: 9px 10px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+  }
+  .summary-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--sand);
+    vertical-align: middle;
+  }
+  .summary-table tr:last-child td { border-bottom: none; }
+  .summary-table tr:hover td { background: #f5f9f5; }
+
+  /* ── Status pills ── */
+  .pill {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+  .pill-bonus  { background: var(--gold-light); color: #6b5200; }
+  .pill-ok     { background: #d4edda; color: #155724; }
+  .pill-warn   { background: #fff3cd; color: #856404; }
+  .pill-danger { background: #f8d7da; color: #721c24; }
+  .pill-null   { background: var(--sand); color: var(--text-muted); }
+
+  /* ── History records ── */
+  .record-card {
+    border: 1.5px solid var(--sand);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+  .record-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .record-period {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--green-dark);
+  }
+  .record-total {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--green-mid);
+  }
+  .record-items {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+  .record-week-tag {
+    display: inline-block;
+    background: var(--sand);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 11px;
+    margin-right: 4px;
+    margin-top: 3px;
+    color: var(--text-main);
+  }
+
+  /* ── Chart ── */
+  .chart-wrap {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+  canvas { max-width: 100%; }
+
+  /* ── Coach benchmark settings ── */
+  .bench-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--sand);
+  }
+  .bench-row:last-child { border-bottom: none; }
+  .bench-name { flex: 1; font-size: 14px; font-weight: 600; }
+  .bench-input { width: 70px !important; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--green-dark);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    transition: transform 0.3s ease;
+    z-index: 999;
+    white-space: nowrap;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ── Loading ── */
+  .spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid var(--sand);
+    border-top-color: var(--green-mid);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Responsive ── */
+  @media (max-width: 480px) {
+    .summary-table { font-size: 12px; }
+    .summary-table th, .summary-table td { padding: 7px 6px; }
+  }
+
+  /* ── Section divider ── */
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin: 20px 0 8px;
+  }
+
+  /* ── Metric cards ── */
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .metric-card {
+    background: #fff;
+    border-radius: var(--radius);
+    padding: 14px 10px;
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .metric-num {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--green-dark);
+    line-height: 1;
+  }
+  .metric-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* ── Period selector ── */
+  .period-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .period-nav select { flex: 1; }
+  .period-nav-btn {
+    background: var(--sand);
+    border: none;
+    border-radius: 7px;
+    width: 32px;
+    height: 36px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .period-nav-btn:hover { background: var(--green-light); }
+
+  .empty-state {
+    text-align: center;
+    padding: 36px 20px;
+    color: var(--text-muted);
+  }
+  .empty-state .empty-icon { font-size: 36px; margin-bottom: 10px; }
+  .empty-state p { font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="header-logo">
+    <div class="logo-mark">⛳</div>
+    <div>
+      <div class="header-title">HOPE 課程回報</div>
+      <div class="header-sub">元木運動行銷</div>
+    </div>
+  </div>
+  <button id="btn-logout" onclick="logout()">登出</button>
+</header>
+
+<div class="period-badge" id="period-display">載入中…</div>
+
+<!-- Coach login -->
+<div id="coach-select-wrap">
+  <div class="welcome-icon">🏌️</div>
+  <div class="welcome-title">教練課程回報</div>
+  <div class="welcome-sub">請選擇你的名字後進入回報</div>
+  <div class="field-group">
+    <label class="field-label">教練姓名</label>
+    <select id="coach-select">
+      <option value="">— 請選擇 —</option>
+    </select>
+  </div>
+  <button class="btn btn-primary" style="width:100%;margin-bottom:12px" onclick="enterCoach()">進入教練頁面 →</button>
+  <button class="btn btn-ghost" style="width:100%" onclick="showAdminLogin()">🔐 管理員登入</button>
+</div>
+
+<!-- Admin login -->
+<div id="admin-login-wrap" style="display:none">
+  <div class="welcome-title" style="margin-bottom:4px">管理員後台</div>
+  <div class="welcome-sub" style="margin-bottom:20px">請輸入密碼</div>
+  <div class="field-group">
+    <label class="field-label">密碼</label>
+    <input type="password" id="admin-pw" placeholder="管理員密碼" onkeydown="if(event.key==='Enter')adminLogin()" style="width:100%;height:50px;font-size:16px;padding:0 16px">
+  </div>
+  <button class="btn btn-primary" style="width:100%;margin-bottom:10px" onclick="adminLogin()">進入</button>
+  <button class="btn btn-ghost" style="width:100%" onclick="showCoachLogin()">← 返回</button>
+</div>
+
+<!-- Main app (hidden until login) -->
+<div id="main-app" style="display:none">
+
+  <!-- Nav tabs (coach) -->
+  <div class="nav-tabs" id="coach-nav">
+    <div class="nav-tab active" onclick="switchTab('report')">📝 填寫課程</div>
+    <div class="nav-tab" onclick="switchTab('myhistory')">📋 我的紀錄</div>
+  </div>
+
+  <!-- Nav tabs (admin) -->
+  <div class="nav-tabs" id="admin-nav" style="display:none">
+    <div class="nav-tab active" onclick="switchTab('overview')">📊 總覽</div>
+    <div class="nav-tab" onclick="switchTab('detail')">👤 教練明細</div>
+    <div class="nav-tab" onclick="switchTab('chart')">📈 圖表</div>
+    <div class="nav-tab" onclick="switchTab('settings')">⚙️ 設定</div>
+  </div>
+
+  <!-- ── Coach: Report page ── -->
+  <div class="page active" id="page-report">
+    <div class="card">
+      <div class="card-title">📝 本週課程回報</div>
+
+      <div class="field-group">
+        <label class="field-label">回報週次（起迄日）</label>
+        <div style="display:flex;gap:8px">
+          <input type="date" id="week-start" style="flex:1">
+          <span style="line-height:38px;color:var(--text-muted);font-size:13px">至</span>
+          <input type="date" id="week-end" style="flex:1">
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">課程項目與堂數</label>
+        <div id="class-rows"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="addClassRow()">＋ 新增課程項目</button>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">備註（選填）</label>
+        <textarea id="note" rows="2" placeholder="特殊說明…"></textarea>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:4px">
+        <div style="font-size:13px;color:var(--text-muted)">
+          本週合計：<span id="week-total" style="font-weight:800;color:var(--green-dark);font-size:16px">0</span> 堂
+        </div>
+        <button class="btn btn-primary" id="submit-btn" onclick="submitReport()">✓ 送出回報</button>
+      </div>
+    </div>
+
+    <!-- This period summary for coach -->
+    <div class="card" id="coach-period-card">
+      <div class="card-title">🗓️ 本期累計</div>
+      <div id="coach-period-summary" class="empty-state">
+        <div class="empty-icon">📊</div>
+        <p>載入中…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Coach: My History ── -->
+  <div class="page" id="page-myhistory">
+    <div class="card">
+      <div class="card-title">📋 我的回報紀錄</div>
+      <div class="period-nav">
+        <button class="period-nav-btn" onclick="shiftMyPeriod(-1)">‹</button>
+        <select id="my-period-sel" onchange="loadMyHistory()"></select>
+        <button class="period-nav-btn" onclick="shiftMyPeriod(1)">›</button>
+      </div>
+      <div id="my-history-list"></div>
+    </div>
+  </div>
+
+  <!-- ── Admin: Overview ── -->
+  <div class="page" id="page-overview">
+    <div class="period-nav">
+      <button class="period-nav-btn" onclick="shiftAdminPeriod(-1)">‹</button>
+      <select id="admin-period-sel" onchange="loadOverview()"></select>
+      <button class="period-nav-btn" onclick="shiftAdminPeriod(1)">›</button>
+    </div>
+
+    <div class="metrics-row" id="overview-metrics">
+      <div class="metric-card"><div class="metric-num" id="m-total">—</div><div class="metric-label">總堂數</div></div>
+      <div class="metric-card"><div class="metric-num" id="m-reached">—</div><div class="metric-label">達標教練</div></div>
+      <div class="metric-card"><div class="metric-num" id="m-bonus">—</div><div class="metric-label">拿獎金</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📊 各教練課程數</div>
+      <div style="overflow-x:auto">
+        <table class="summary-table" id="overview-table">
+          <thead>
+            <tr>
+              <th>教練</th>
+              <th style="text-align:right">本期堂數</th>
+              <th style="text-align:center">達標</th>
+              <th style="text-align:center">獎金</th>
+            </tr>
+          </thead>
+          <tbody id="overview-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Admin: Coach Detail ── -->
+  <div class="page" id="page-detail">
+    <div class="card">
+      <div class="card-title">👤 教練明細</div>
+      <div class="field-group">
+        <label class="field-label">選擇教練</label>
+        <select id="detail-coach-sel" onchange="loadCoachDetail()">
+          <option value="">— 選擇教練 —</option>
+        </select>
+      </div>
+    </div>
+    <div id="detail-content"></div>
+  </div>
+
+  <!-- ── Admin: Chart ── -->
+  <div class="page" id="page-chart">
+    <div class="card">
+      <div class="card-title">📈 課堂數歷史趨勢</div>
+      <div class="field-group">
+        <label class="field-label">顯示</label>
+        <select id="chart-coach-sel" onchange="renderChart()">
+          <option value="__all__">全體總堂數</option>
+        </select>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="main-chart" height="220"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 各期統計表</div>
+      <div style="overflow-x:auto">
+        <table class="summary-table" id="history-table">
+          <thead><tr id="history-thead-row"></tr></thead>
+          <tbody id="history-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">⬇️ 匯出報表</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">依目前選取的教練／期間匯出，包含圖表與統計表</p>
+
+      <div style="margin-bottom:12px">
+        <label class="field-label">匯出範圍</label>
+        <select id="export-scope" style="margin-bottom:0">
+          <option value="current">目前顯示（單人或全體）</option>
+          <option value="all_coaches">所有教練個別報表（合併一份 Excel）</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label class="field-label">期間</label>
+        <div style="display:flex;gap:8px">
+          <select id="export-period-from" style="flex:1"></select>
+          <span style="line-height:36px;color:var(--text-muted);font-size:13px">至</span>
+          <select id="export-period-to" style="flex:1"></select>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" style="flex:1;min-width:120px" onclick="exportExcel()">
+          📊 下載 Excel
+        </button>
+        <button class="btn btn-gold" style="flex:1;min-width:120px" onclick="exportPDF()">
+          📄 下載 PDF
+        </button>
+      </div>
+      <div id="export-status" style="margin-top:10px;font-size:12px;color:var(--text-muted)"></div>
+    </div>
+  </div>
+
+  <!-- ── Admin: Settings ── -->
+  <div class="page" id="page-settings">
+
+    <div class="card">
+      <div class="card-title">🔗 GAS 網址設定</div>
+      <div class="field-group">
+        <label class="field-label">Google Apps Script 網址</label>
+        <input type="text" id="gas-url" placeholder="https://script.google.com/macros/s/…/exec">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="testGas()">測試連線</button>
+        <button class="btn btn-primary btn-sm" onclick="saveGasUrl()">儲存</button>
+      </div>
+      <div id="gas-test-result" style="margin-top:10px;font-size:12px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">👥 教練名單管理</div>
+      <div id="coach-list-mgmt"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input type="text" id="new-coach-name" placeholder="新教練姓名" style="flex:1">
+        <button class="btn btn-primary btn-sm" onclick="addCoach()">＋ 新增</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📚 課程項目管理</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">教練填報時只能選擇以下項目，無法自行輸入</p>
+      <div id="course-type-list"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input type="text" id="new-course-type" placeholder="新課程項目名稱" style="flex:1">
+        <button class="btn btn-primary btn-sm" onclick="addCourseType()">＋ 新增</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📌 各教練固定課程</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">勾選後，教練每次開表單會自動帶入這些項目，只需填堂數即可</p>
+      <div id="fixed-class-settings"></div>
+      <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="saveFixedClasses()">💾 儲存固定課程</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🎯 課堂標準設定</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">每次儲存都會保留歷史記錄，各期自動套用當時的標準。點 🕐 可查看該教練的歷史版本。</p>
+      <div id="bench-settings"></div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sand)">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <div style="font-size:12px;color:var(--text-muted);flex:1">
+            批次設定：達標 <input type="number" id="default-target" value="0" min="0" style="width:54px;padding:4px 6px;font-size:12px"> 堂　獎金 <input type="number" id="default-bonus" value="0" min="0" style="width:54px;padding:4px 6px;font-size:12px"> 堂
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="applyDefault()">套用到所有人</button>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:12px;color:var(--text-muted);font-weight:700;display:block;margin-bottom:4px">本次調整備註（選填）</label>
+          <input type="text" id="bench-save-note" placeholder="例：Q3 晉升調整、新教練起始標準…" style="font-size:13px">
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="saveBenchmarks()">💾 儲存並記錄歷史</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔐 管理員密碼</div>
+      <div class="field-group">
+        <label class="field-label">新密碼</label>
+        <input type="password" id="new-pw1">
+      </div>
+      <div class="field-group">
+        <label class="field-label">確認密碼</label>
+        <input type="password" id="new-pw2">
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="changeAdminPw()">更新密碼</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 GAS 程式碼參考</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">將以下程式碼貼入 Google Apps Script，部署為「網路應用程式」（任何人皆可存取）</p>
+      <div style="position:relative">
+        <pre id="gas-code-display" style="background:var(--green-dark);color:#d4f8d4;padding:14px;border-radius:8px;font-size:10.5px;overflow-x:auto;white-space:pre;line-height:1.5;max-height:300px;overflow-y:auto"></pre>
+        <button class="btn btn-gold btn-sm" style="position:absolute;top:8px;right:8px" onclick="copyGasCode()">複製</button>
+      </div>
+    </div>
+
+  </div>
+
+</div><!-- /main-app -->
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG & STORAGE
+// ══════════════════════════════════════════
+const STORAGE_KEY = 'hope_classes_';
+const ADMIN_PW_KEY = 'hope_classes_admin_pw';
+const GAS_KEY = 'hope_classes_gas';
+const COACHES_KEY = 'hope_classes_coaches';
+const BENCH_KEY = 'hope_classes_bench';
+const COURSE_TYPES_KEY = 'hope_classes_course_types';
+const BENCH_HISTORY_KEY = 'hope_classes_bench_history';
+const FIXED_CLASSES_KEY  = 'hope_classes_fixed';  // { coachName: [{name, count}] }
+
+const DEFAULT_COACHES = ['Carol','Adam','Kenny','Joanne','Vis','Kevin','Allen','Sean','Ava','Howard','Ella','Elly','Gary','Foin','William'];
+const DEFAULT_COURSE_TYPES = ['個人課','半私課（2人）','小團課（3-5人）','短桿精進班','果嶺班','下場班','青少年課','體驗課'];
+
+let currentRole = null; // 'coach' | 'admin'
+let currentCoach = null;
+let gasUrl = localStorage.getItem(GAS_KEY) || '';
+let coaches = JSON.parse(localStorage.getItem(COACHES_KEY) || 'null') || DEFAULT_COACHES;
+let courseTypes = JSON.parse(localStorage.getItem(COURSE_TYPES_KEY) || 'null') || [...DEFAULT_COURSE_TYPES];
+let benchmarks = JSON.parse(localStorage.getItem(BENCH_KEY) || '{}');
+// benchHistory: { coachName: [{target, bonus, from, note}] }
+let benchHistory   = JSON.parse(localStorage.getItem(BENCH_HISTORY_KEY) || '{}');
+// fixedClasses: { coachName: [{name, count}] }
+let fixedClasses   = JSON.parse(localStorage.getItem(FIXED_CLASSES_KEY) || '{}');
+let adminPw = localStorage.getItem(ADMIN_PW_KEY) || 'carolhope2026';
+let allData = []; // fetched from GAS
+let chartInstance = null;
+
+// ══════════════════════════════════════════
+// BENCHMARK HELPERS
+// ══════════════════════════════════════════
+// Return the benchmark that was active at the START of a given period key (YYYY-MM)
+// A period YYYY-MM starts on YYYY-MM-21 (previous month's 21st)
+// "from" in history is stored as a periodKey (YYYY-MM) meaning "effective from this period onward"
+function getBenchForPeriod(coach, periodKey) {
+  const history = benchHistory[coach];
+  if (!history || history.length === 0) {
+    // Fall back to current benchmarks
+    return benchmarks[coach] || { target: 0, bonus: 0 };
+  }
+  // Find the latest entry whose "from" <= periodKey
+  const sorted = [...history].sort((a, b) => a.from.localeCompare(b.from));
+  let match = null;
+  for (const entry of sorted) {
+    if (entry.from <= periodKey) match = entry;
+  }
+  if (!match) match = sorted[0]; // use earliest if all are newer
+  return match;
+}
+
+// ══════════════════════════════════════════
+// PERIOD LOGIC  (21st prev → 20th this month)
+// ══════════════════════════════════════════
+function getPeriodKey(date) {
+  const d = date || new Date();
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  if (d.getDate() <= 20) {
+    // belongs to period that started on prev month's 21st
+    const pm = m === 1 ? 12 : m - 1;
+    const py = m === 1 ? y - 1 : y;
+    return `${py}-${String(pm).padStart(2,'0')}`;
+  } else {
+    return `${y}-${String(m).padStart(2,'0')}`;
+  }
+}
+
+function periodLabel(key) {
+  const [y, m] = key.split('-').map(Number);
+  const nm = m === 12 ? 1 : m + 1;
+  const ny = m === 12 ? y + 1 : y;
+  return `${y}/${m}/21 – ${ny}/${nm}/20`;
+}
+
+function currentPeriodKey() { return getPeriodKey(new Date()); }
+
+function getPeriodKeys(monthsBack = 12) {
+  const keys = [];
+  let d = new Date();
+  for (let i = 0; i <= monthsBack; i++) {
+    keys.unshift(getPeriodKey(d));
+    d = new Date(d.getFullYear(), d.getMonth() - 1, 15);
+  }
+  return [...new Set(keys)];
+}
+
+function shiftPeriod(key, delta) {
+  let [y, m] = key.split('-').map(Number);
+  m += delta;
+  if (m > 12) { m -= 12; y++; }
+  if (m < 1)  { m += 12; y--; }
+  return `${y}-${String(m).padStart(2,'0')}`;
+}
+
+// ══════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════
+function showCoachLogin() {
+  document.getElementById('coach-select-wrap').style.display = '';
+  document.getElementById('admin-login-wrap').style.display = 'none';
+  document.getElementById('main-app').style.display = 'none';
+}
+
+function showAdminLogin() {
+  document.getElementById('coach-select-wrap').style.display = 'none';
+  document.getElementById('admin-login-wrap').style.display = '';
+}
+
+function enterCoach() {
+  const name = document.getElementById('coach-select').value;
+  if (!name) { showToast('請先選擇教練姓名'); return; }
+  currentRole = 'coach';
+  currentCoach = name;
+  initApp();
+}
+
+function adminLogin() {
+  const pw = document.getElementById('admin-pw').value;
+  if (pw !== adminPw) { showToast('密碼錯誤'); return; }
+  currentRole = 'admin';
+  currentCoach = null;
+  initApp();
+}
+
+function logout() {
+  currentRole = null;
+  currentCoach = null;
+  document.getElementById('main-app').style.display = 'none';
+  document.getElementById('btn-logout').style.display = 'none';
+  document.getElementById('coach-select-wrap').style.display = '';
+  document.getElementById('admin-login-wrap').style.display = 'none';
+  document.getElementById('admin-pw').value = '';
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+function initApp() {
+  document.getElementById('coach-select-wrap').style.display = 'none';
+  document.getElementById('admin-login-wrap').style.display = 'none';
+  document.getElementById('main-app').style.display = '';
+  document.getElementById('btn-logout').style.display = '';
+
+  if (currentRole === 'coach') {
+    document.getElementById('coach-nav').style.display = 'flex';
+    document.getElementById('admin-nav').style.display = 'none';
+    initCoachApp();
+  } else {
+    document.getElementById('coach-nav').style.display = 'none';
+    document.getElementById('admin-nav').style.display = 'flex';
+    initAdminApp();
+  }
+
+  updatePeriodDisplay();
+}
+
+function updatePeriodDisplay() {
+  const key = currentPeriodKey();
+  document.getElementById('period-display').textContent = `📅 本期：${periodLabel(key)}`;
+}
+
+// ══════════════════════════════════════════
+// TAB SWITCHING
+// ══════════════════════════════════════════
+function switchTab(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+
+  const nav = document.querySelectorAll('.nav-tab');
+  nav.forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+
+  if (id === 'overview')  loadOverview();
+  if (id === 'detail')    loadDetailCoachList();
+  if (id === 'chart')     renderChart();
+  if (id === 'settings')  initSettings();
+  if (id === 'myhistory') loadMyHistory();
+}
+
+// ══════════════════════════════════════════
+// COACH APP
+// ══════════════════════════════════════════
+function initCoachApp() {
+  // Set default week dates (Mon-Sun of current week)
+  const today = new Date();
+  const dow = today.getDay() || 7;
+  const mon = new Date(today); mon.setDate(today.getDate() - dow + 1);
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  document.getElementById('week-start').value = fmtDate(mon);
+  document.getElementById('week-end').value   = fmtDate(sun);
+
+  // Clear rows, then pre-fill with fixed classes for this coach
+  document.getElementById('class-rows').innerHTML = '';
+  const fixed = fixedClasses[currentCoach] || [];
+  if (fixed.length > 0) {
+    fixed.forEach(fc => addClassRow(fc.name, ''));   // pre-select name, leave count blank
+  } else {
+    addClassRow();  // one blank row if no fixed classes set
+  }
+
+  // Load period periods for selector
+  const sel = document.getElementById('my-period-sel');
+  sel.innerHTML = '';
+  getPeriodKeys(12).reverse().forEach(k => {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = periodLabel(k);
+    sel.appendChild(o);
+  });
+
+  loadCoachPeriodSummary();
+}
+
+function addClassRow(name = '', count = '') {
+  const container = document.getElementById('class-rows');
+  const row = document.createElement('div');
+  row.className = 'class-row';
+
+  const nameWrap = document.createElement('div');
+  nameWrap.className = 'class-name';
+
+  const nameInput = document.createElement('select');
+  nameInput.style.width = '100%';
+  // Use admin-configured courseTypes only (no custom input)
+  courseTypes.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t; o.textContent = t;
+    nameInput.appendChild(o);
+  });
+  if (name) nameInput.value = name;
+  nameInput.onchange = updateWeekTotal;
+  nameWrap.appendChild(nameInput);
+
+  const countWrap = document.createElement('div');
+  countWrap.className = 'class-count';
+  const countInput = document.createElement('input');
+  countInput.type = 'number'; countInput.min = '0'; countInput.placeholder = '堂';
+  countInput.value = count;
+  countInput.oninput = updateWeekTotal;
+  countWrap.appendChild(countInput);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'remove-row';
+  removeBtn.innerHTML = '×';
+  removeBtn.onclick = function() {
+    container.removeChild(row);
+    updateWeekTotal();
+  };
+
+  row.appendChild(nameWrap);
+  row.appendChild(countWrap);
+  row.appendChild(removeBtn);
+  container.appendChild(row);
+}
+
+function updateWeekTotal() {
+  let total = 0;
+  document.querySelectorAll('#class-rows .class-count input').forEach(inp => {
+    total += parseInt(inp.value) || 0;
+  });
+  document.getElementById('week-total').textContent = total;
+}
+
+async function submitReport() {
+  const weekStart = document.getElementById('week-start').value;
+  const weekEnd   = document.getElementById('week-end').value;
+  if (!weekStart || !weekEnd) { showToast('請填寫週次日期'); return; }
+
+  const classes = [];
+  const rows = document.querySelectorAll('#class-rows .class-row');
+  rows.forEach(row => {
+    const nameEl = row.querySelector('.class-name select, .class-name input');
+    const countEl = row.querySelector('.class-count input');
+    const name = nameEl ? nameEl.value.trim() : '';
+    const count = parseInt(countEl ? countEl.value : 0) || 0;
+    if (name && name !== '__custom__' && count > 0) {
+      classes.push({ name, count });
+    }
+  });
+
+  if (classes.length === 0) { showToast('請填寫至少一項課程及堂數'); return; }
+
+  const note = document.getElementById('note').value.trim();
+  const ts = new Date().toISOString();
+  const periodKey = getPeriodKey(new Date(weekStart));
+
+  const payload = {
+    type: 'class_report',
+    ts, coach: currentCoach,
+    weekStart, weekEnd,
+    classes, note, periodKey
+  };
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>送出中…';
+
+  try {
+    if (gasUrl) {
+      await postGas(payload);
+    } else {
+      // Save locally if no GAS
+      saveLocal(payload);
+    }
+    showToast('✅ 回報成功！');
+    document.getElementById('class-rows').innerHTML = '';
+    addClassRow(); addClassRow();
+    document.getElementById('note').value = '';
+    updateWeekTotal();
+    loadCoachPeriodSummary();
+  } catch(e) {
+    showToast('❌ 送出失敗：' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '✓ 送出回報';
+}
+
+async function loadCoachPeriodSummary() {
+  const key = currentPeriodKey();
+  const card = document.getElementById('coach-period-summary');
+  card.innerHTML = '<span class="spinner"></span> 載入中…';
+
+  try {
+    const data = await fetchReports(key);
+    const mine = data.filter(r => r.coach === currentCoach);
+    if (mine.length === 0) {
+      card.innerHTML = '<div class="empty-state"><div class="empty-icon">📝</div><p>本期尚無回報</p></div>';
+      return;
+    }
+
+    let total = 0;
+    const classMap = {};
+    mine.forEach(r => {
+      (r.classes || []).forEach(c => {
+        total += c.count;
+        classMap[c.name] = (classMap[c.name] || 0) + c.count;
+      });
+    });
+
+    const bench = benchmarks[currentCoach] || {};
+    const target = bench.target || 0;
+    const bonusThreshold = bench.bonus || 0;
+
+    let statusHtml = '';
+    if (target > 0) {
+      if (bonusThreshold > 0 && total >= bonusThreshold) {
+        statusHtml = `<span class="pill pill-bonus">🏆 達到獎金門檻！</span>`;
+      } else if (total >= target) {
+        statusHtml = `<span class="pill pill-ok">✅ 已達標</span>`;
+      } else {
+        const diff = target - total;
+        statusHtml = `<span class="pill pill-warn">⏳ 距達標還差 ${diff} 堂</span>`;
+      }
+    }
+
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div>
+          <div style="font-size:32px;font-weight:800;color:var(--green-dark);line-height:1">${total}</div>
+          <div style="font-size:12px;color:var(--text-muted)">本期總堂數${target > 0 ? ` / 目標 ${target} 堂` : ''}</div>
+        </div>
+        <div style="text-align:right">${statusHtml}</div>
+      </div>
+      <div style="border-top:1px solid var(--sand);padding-top:10px">
+        ${Object.entries(classMap).map(([n,c]) =>
+          `<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0">
+            <span>${n}</span><span style="font-weight:700">${c} 堂</span>
+          </div>`).join('')}
+      </div>
+    `;
+  } catch(e) {
+    card.innerHTML = `<p style="font-size:12px;color:var(--text-muted)">無法載入（${e.message}）</p>`;
+  }
+}
+
+async function loadMyHistory() {
+  const key = document.getElementById('my-period-sel').value;
+  const list = document.getElementById('my-history-list');
+  list.innerHTML = '<span class="spinner"></span> 載入中…';
+
+  try {
+    const data = await fetchReports(key);
+    const mine = data.filter(r => r.coach === currentCoach);
+    if (mine.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>本期無回報</p></div>';
+      return;
+    }
+
+    // Sort by weekStart desc
+    mine.sort((a,b) => (b.weekStart || '').localeCompare(a.weekStart || ''));
+
+    let html = '';
+    mine.forEach(r => {
+      const weekTotal = (r.classes || []).reduce((s,c) => s + c.count, 0);
+      const items = (r.classes || []).map(c =>
+        `<span class="record-week-tag">${c.name} ×${c.count}</span>`).join('');
+      html += `
+        <div class="record-card">
+          <div class="record-header">
+            <div class="record-period">${r.weekStart} — ${r.weekEnd}</div>
+            <div class="record-total">${weekTotal} 堂</div>
+          </div>
+          <div class="record-items">${items}</div>
+          ${r.note ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">📝 ${r.note}</div>` : ''}
+        </div>`;
+    });
+    list.innerHTML = html;
+  } catch(e) {
+    list.innerHTML = `<p style="font-size:12px;color:var(--text-muted)">無法載入</p>`;
+  }
+}
+
+function shiftMyPeriod(delta) {
+  const sel = document.getElementById('my-period-sel');
+  const keys = Array.from(sel.options).map(o => o.value);
+  const idx = keys.indexOf(sel.value);
+  const newIdx = Math.max(0, Math.min(keys.length - 1, idx + delta));
+  sel.value = keys[newIdx];
+  loadMyHistory();
+}
+
+// ══════════════════════════════════════════
+// ADMIN APP
+// ══════════════════════════════════════════
+function initAdminApp() {
+  const sel = document.getElementById('admin-period-sel');
+  sel.innerHTML = '';
+  getPeriodKeys(18).reverse().forEach(k => {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = periodLabel(k);
+    sel.appendChild(o);
+  });
+
+  loadOverview();
+}
+
+async function loadOverview() {
+  const key = document.getElementById('admin-period-sel').value;
+  const tbody = document.getElementById('overview-tbody');
+  tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:20px"><span class="spinner"></span></td></tr>`;
+
+  try {
+    const data = await fetchReports(key);
+    const coachTotals = aggregateByCoach(data);
+
+    let totalAll = 0, reachedCount = 0, bonusCount = 0;
+
+    let rows = '';
+    coaches.forEach(name => {
+      const total = coachTotals[name] || 0;
+      totalAll += total;
+      const bench = getBenchForPeriod(name, key);
+      const target = bench.target || 0;
+      const bonusT = bench.bonus || 0;
+
+      let reachPill = '<span class="pill pill-null">—</span>';
+      let bonusPill = '<span class="pill pill-null">—</span>';
+
+      if (target > 0) {
+        if (total >= target) {
+          reachPill = '<span class="pill pill-ok">✅</span>';
+          reachedCount++;
+        } else {
+          reachPill = `<span class="pill pill-danger">✗ 差${target-total}</span>`;
+        }
+      }
+      if (bonusT > 0) {
+        if (total >= bonusT) {
+          bonusPill = '<span class="pill pill-bonus">🏆</span>';
+          bonusCount++;
+        } else {
+          bonusPill = `<span class="pill pill-null">差${bonusT-total}</span>`;
+        }
+      }
+
+      rows += `<tr>
+        <td><strong>${name}</strong></td>
+        <td style="text-align:right;font-weight:700;font-size:15px">${total}</td>
+        <td style="text-align:center">${reachPill}</td>
+        <td style="text-align:center">${bonusPill}</td>
+      </tr>`;
+    });
+
+    tbody.innerHTML = rows || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">無資料</td></tr>';
+    document.getElementById('m-total').textContent = totalAll;
+    document.getElementById('m-reached').textContent = reachedCount;
+    document.getElementById('m-bonus').textContent = bonusCount;
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--alert)">載入失敗</td></tr>`;
+  }
+}
+
+function shiftAdminPeriod(delta) {
+  const sel = document.getElementById('admin-period-sel');
+  const keys = Array.from(sel.options).map(o => o.value);
+  const idx = keys.indexOf(sel.value);
+  const newIdx = Math.max(0, Math.min(keys.length - 1, idx + delta));
+  sel.value = keys[newIdx];
+  loadOverview();
+}
+
+function loadDetailCoachList() {
+  const sel = document.getElementById('detail-coach-sel');
+  sel.innerHTML = '<option value="">— 選擇教練 —</option>';
+  coaches.forEach(n => {
+    const o = document.createElement('option');
+    o.value = n; o.textContent = n;
+    sel.appendChild(o);
+  });
+}
+
+async function loadCoachDetail() {
+  const name = document.getElementById('detail-coach-sel').value;
+  const content = document.getElementById('detail-content');
+  if (!name) { content.innerHTML = ''; return; }
+
+  content.innerHTML = '<div class="card"><span class="spinner"></span> 載入中…</div>';
+
+  const allKeys = getPeriodKeys(12);
+
+  try {
+    // Fetch all periods
+    const periodData = await Promise.all(allKeys.map(async k => {
+      const data = await fetchReports(k);
+      const mine = data.filter(r => r.coach === name);
+      const total = mine.reduce((s,r) => s + (r.classes||[]).reduce((ss,c)=>ss+c.count,0), 0);
+      return { key: k, total, records: mine };
+    }));
+
+    const current = periodData[periodData.length - 1];
+    const currentTotal = current.total;
+    const curBench = getBenchForPeriod(name, current.key);
+    const target = curBench.target || 0;
+    const bonusT = curBench.bonus || 0;
+
+    let statusHtml = '';
+    if (target > 0) {
+      if (bonusT > 0 && currentTotal >= bonusT) statusHtml = '<span class="pill pill-bonus">🏆 達到獎金門檻</span>';
+      else if (currentTotal >= target) statusHtml = '<span class="pill pill-ok">✅ 已達標</span>';
+      else statusHtml = `<span class="pill pill-danger">⏳ 差 ${target - currentTotal} 堂</span>`;
+    }
+
+    // Build detail HTML
+    let html = `
+      <div class="card">
+        <div class="card-title">📊 ${name} — 本期</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div>
+            <div style="font-size:36px;font-weight:800;color:var(--green-dark)">${currentTotal}</div>
+            <div style="font-size:12px;color:var(--text-muted)">本期堂數${target > 0 ? ` ／ 達標 ${target} 堂${bonusT ? ` ／ 獎金 ${bonusT} 堂` : ''}` : ''}</div>
+          </div>
+          ${statusHtml}
+        </div>
+    `;
+
+    // Weekly breakdown
+    const sorted = [...current.records].sort((a,b) => (a.weekStart||'').localeCompare(b.weekStart||''));
+    if (sorted.length > 0) {
+      html += `<div style="border-top:1px solid var(--sand);padding-top:10px">`;
+      sorted.forEach(r => {
+        const wt = (r.classes||[]).reduce((s,c)=>s+c.count,0);
+        html += `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--sand)">
+            <div>
+              <div style="font-size:12px;color:var(--text-muted)">${r.weekStart} – ${r.weekEnd}</div>
+              <div style="font-size:12px;margin-top:2px">${(r.classes||[]).map(c=>`${c.name}×${c.count}`).join('、')}</div>
+            </div>
+            <div style="font-weight:700;color:var(--green-mid)">${wt}堂</div>
+          </div>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div>`;
+
+    // History table
+    html += `
+      <div class="card">
+        <div class="card-title">📅 歷史紀錄</div>
+        <table class="summary-table">
+          <thead><tr>
+            <th>期間</th>
+            <th style="text-align:right">堂數</th>
+            <th style="text-align:center">狀態</th>
+          </tr></thead>
+          <tbody>`;
+    periodData.slice().reverse().forEach(p => {
+      const pb = getBenchForPeriod(name, p.key);
+      const pt = pb.target || 0;
+      const pb2 = pb.bonus || 0;
+      let pill = '';
+      if (pb2 > 0 && p.total >= pb2) pill = '<span class="pill pill-bonus">🏆</span>';
+      else if (pt > 0 && p.total >= pt) pill = '<span class="pill pill-ok">✅</span>';
+      else if (pt > 0 && p.total > 0) pill = '<span class="pill pill-warn">未達標</span>';
+      else if (p.total === 0) pill = '<span class="pill pill-null">—</span>';
+      const benchLabel = pt > 0 ? `<span style="font-size:10px;color:var(--text-muted)">/${pt}${pb2 ? '+'+pb2 : ''}</span>` : '';
+      html += `<tr>
+        <td style="font-size:12px">${periodLabel(p.key)}</td>
+        <td style="text-align:right;font-weight:700">${p.total} ${benchLabel}</td>
+        <td style="text-align:center">${pill}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+
+    content.innerHTML = html;
+  } catch(e) {
+    content.innerHTML = `<div class="card"><p style="color:var(--alert)">載入失敗：${e.message}</p></div>`;
+  }
+}
+
+// ══════════════════════════════════════════
+// CHART
+// ══════════════════════════════════════════
+async function renderChart() {
+  // Populate coach selector
+  const sel = document.getElementById('chart-coach-sel');
+  if (sel.options.length <= 1) {
+    coaches.forEach(n => {
+      const o = document.createElement('option');
+      o.value = n; o.textContent = n;
+      sel.appendChild(o);
+    });
+  }
+
+  const choice = sel.value;
+  const allKeys = getPeriodKeys(12);
+  const labels = allKeys.map(k => {
+    const [y, m] = k.split('-').map(Number);
+    return `${y}/${m}`;
+  });
+
+  try {
+    const periodTotals = await Promise.all(allKeys.map(async k => {
+      const data = await fetchReports(k);
+      if (choice === '__all__') {
+        return data.reduce((s,r) => s + (r.classes||[]).reduce((ss,c)=>ss+c.count,0), 0);
+      } else {
+        return data.filter(r=>r.coach===choice)
+          .reduce((s,r) => s + (r.classes||[]).reduce((ss,c)=>ss+c.count,0), 0);
+      }
+    }));
+
+    drawChart(labels, periodTotals, choice === '__all__' ? '全體總堂數' : choice, choice);
+
+    // Build history table
+    const headRow = document.getElementById('history-thead-row');
+    const tbody = document.getElementById('history-tbody');
+
+    if (choice === '__all__') {
+      headRow.innerHTML = '<th>教練</th>' + allKeys.map(k => {
+        const [y,m]=k.split('-').map(Number);
+        return `<th style="text-align:right">${y}/${m}</th>`;
+      }).join('');
+
+      const perCoach = await Promise.all(coaches.map(async name => {
+        const totals = await Promise.all(allKeys.map(async k => {
+          const d = await fetchReports(k);
+          return d.filter(r=>r.coach===name).reduce((s,r)=>s+(r.classes||[]).reduce((ss,c)=>ss+c.count,0),0);
+        }));
+        return { name, totals };
+      }));
+
+      // Per-coach rows
+      tbody.innerHTML = perCoach.map(({name, totals}) =>
+        `<tr><td style="white-space:nowrap;font-weight:600">${name}</td>` +
+        totals.map(t=>`<td style="text-align:right">${t||'—'}</td>`).join('') +
+        '</tr>'
+      ).join('');
+
+      // Add a header column for period totals
+      headRow.innerHTML += '<th style="text-align:right;background:#0f2419">合計</th>';
+
+      // Re-render rows with per-coach grand total appended
+      tbody.innerHTML = perCoach.map(({name, totals}) => {
+        const coachTotal = totals.reduce((s,t)=>s+t,0);
+        return `<tr><td style="white-space:nowrap;font-weight:600">${name}</td>` +
+          totals.map(t=>`<td style="text-align:right">${t||'—'}</td>`).join('') +
+          `<td style="text-align:right;font-weight:800;color:var(--green-mid)">${coachTotal||'—'}</td>` +
+          '</tr>';
+      }).join('');
+
+      // Sum row at the bottom
+      const periodSums = allKeys.map((_,i) =>
+        perCoach.reduce((s, {totals}) => s + (totals[i]||0), 0)
+      );
+      const grandSum = periodSums.reduce((s,t)=>s+t,0);
+      const sumRow = document.createElement('tr');
+      sumRow.style.cssText = 'background:var(--green-dark);color:#fff;font-weight:800;';
+      sumRow.innerHTML =
+        `<td style="padding:9px 10px;font-size:12px;letter-spacing:0.3px">全體合計</td>` +
+        periodSums.map(s =>
+          `<td style="text-align:right;padding:9px 10px">${s||'—'}</td>`
+        ).join('') +
+        `<td style="text-align:right;padding:9px 10px;color:var(--gold-light);font-size:15px">${grandSum}</td>`;
+      tbody.appendChild(sumRow);
+    }
+
+  } catch(e) {
+    console.error(e);
+  }
+
+  // Populate export period selectors
+  initExportPeriodSelectors(allKeys);
+}
+
+function initExportPeriodSelectors(allKeys) {
+  const fromSel = document.getElementById('export-period-from');
+  const toSel   = document.getElementById('export-period-to');
+  if (!fromSel || !toSel) return;
+  const opts = allKeys.slice().reverse().map(k =>
+    `<option value="${k}">${periodLabel(k)}</option>`).join('');
+  fromSel.innerHTML = opts;
+  toSel.innerHTML   = opts;
+  // Default: from = earliest in last 6, to = latest
+  if (allKeys.length > 6) fromSel.value = allKeys[allKeys.length - 6];
+  toSel.value = allKeys[allKeys.length - 1];
+}
+
+function drawChart(labels, data, label, coachKey) {
+  const canvas = document.getElementById('main-chart');
+  const ctx = canvas.getContext('2d');
+
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+  // Target/bonus lines
+  const bench = coachKey && coachKey !== '__all__' ? (benchmarks[coachKey] || {}) : {};
+  const target = bench.target || 0;
+  const bonusT = bench.bonus || 0;
+
+  // Simple custom chart using Canvas API
+  const W = canvas.offsetWidth || 600;
+  const H = 220;
+  canvas.width = W;
+  canvas.height = H;
+
+  const padL = 40, padR = 20, padT = 20, padB = 40;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const maxVal = Math.max(...data, target, bonusT, 1);
+  const step = Math.ceil(maxVal / 5);
+  const yMax = step * 6;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = '#e9e4d8';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = padT + chartH - (i * step / yMax) * chartH;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(i * step, padL - 4, y + 3);
+  }
+
+  // Benchmark lines
+  function drawRefLine(val, color, dash, text) {
+    if (!val) return;
+    const y = padT + chartH - (val / yMax) * chartH;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash(dash);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(text, padL + 4, y - 3);
+    ctx.restore();
+  }
+  drawRefLine(target, '#40916c', [5,3], `達標 ${target}`);
+  drawRefLine(bonusT, '#c9a84c', [5,3], `獎金 ${bonusT}`);
+
+  const n = labels.length;
+  const barW = Math.max(6, chartW / n - 8);
+
+  // Bars
+  data.forEach((v, i) => {
+    const x = padL + (i + 0.5) / n * chartW - barW / 2;
+    const barH2 = (v / yMax) * chartH;
+    const y = padT + chartH - barH2;
+
+    ctx.fillStyle = v >= (bonusT || Infinity) ? '#c9a84c' :
+                    v >= (target || Infinity) ? '#40916c' : '#74c69d';
+    ctx.beginPath();
+    const r = 4;
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + barW - r, y);
+    ctx.quadraticCurveTo(x + barW, y, x + barW, y + r);
+    ctx.lineTo(x + barW, padT + chartH);
+    ctx.lineTo(x, padT + chartH);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Value label
+    if (v > 0) {
+      ctx.fillStyle = '#1a3a2a';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(v, x + barW/2, y - 3);
+    }
+
+    // X label
+    ctx.fillStyle = '#6b7c6b';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(labels[i], x + barW/2, padT + chartH + 14);
+  });
+}
+
+// ══════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════
+function initSettings() {
+  document.getElementById('gas-url').value = gasUrl;
+
+  // Coach list
+  renderCoachMgmt();
+
+  // Course types
+  renderCourseTypeMgmt();
+
+  // Fixed classes per coach
+  renderFixedClassSettings();
+
+  // Benchmarks
+  renderBenchSettings();
+
+  // GAS code
+  document.getElementById('gas-code-display').textContent = getGasCode();
+}
+
+function renderCoachMgmt() {
+  const el = document.getElementById('coach-list-mgmt');
+  el.innerHTML = coaches.map((c, i) =>
+    `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sand)">
+      <span style="flex:1;font-size:14px">${c}</span>
+      <button class="btn btn-ghost btn-sm" onclick="removeCoach(${i})">移除</button>
+    </div>`
+  ).join('');
+}
+
+function renderCourseTypeMgmt() {
+  const el = document.getElementById('course-type-list');
+  if (!el) return;
+  el.innerHTML = courseTypes.map((t, i) =>
+    `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sand)">
+      <span style="flex:1;font-size:14px">${t}</span>
+      <button class="btn btn-ghost btn-sm" onclick="moveCourseType(${i},-1)" ${i===0?'disabled':''}>↑</button>
+      <button class="btn btn-ghost btn-sm" onclick="moveCourseType(${i},1)" ${i===courseTypes.length-1?'disabled':''}>↓</button>
+      <button class="btn btn-ghost btn-sm" style="color:var(--alert)" onclick="removeCourseType(${i})">移除</button>
+    </div>`
+  ).join('');
+}
+
+function addCourseType() {
+  const name = document.getElementById('new-course-type').value.trim();
+  if (!name) { showToast('請輸入課程項目名稱'); return; }
+  if (courseTypes.includes(name)) { showToast('已有此項目'); return; }
+  courseTypes.push(name);
+  saveCourseTypes();
+  renderCourseTypeMgmt();
+  document.getElementById('new-course-type').value = '';
+  showToast('已新增：' + name);
+}
+
+function removeCourseType(i) {
+  if (!confirm(`確定移除「${courseTypes[i]}」？`)) return;
+  courseTypes.splice(i, 1);
+  saveCourseTypes();
+  renderCourseTypeMgmt();
+}
+
+function moveCourseType(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= courseTypes.length) return;
+  [courseTypes[i], courseTypes[j]] = [courseTypes[j], courseTypes[i]];
+  saveCourseTypes();
+  renderCourseTypeMgmt();
+}
+
+function saveCourseTypes() {
+  localStorage.setItem(COURSE_TYPES_KEY, JSON.stringify(courseTypes));
+}
+
+function renderFixedClassSettings() {
+  const el = document.getElementById('fixed-class-settings');
+  if (!el) return;
+
+  // Build: for each coach, show checkboxes for each courseType + optional default count
+  el.innerHTML = coaches.map(coach => {
+    const fixed = fixedClasses[coach] || [];
+    const fixedMap = {};
+    fixed.forEach(f => { fixedMap[f.name] = f.count || ''; });
+
+    const rows = courseTypes.map(t => {
+      const checked = fixedMap.hasOwnProperty(t) ? 'checked' : '';
+      const cnt = fixedMap[t] || '';
+      const safeCoach = coach.replace(/[^a-zA-Z0-9]/g, '_');
+      const safeType  = t.replace(/[^a-zA-Z0-9一-鿿]/g, '_');
+      const cbId = `fc_${safeCoach}_${safeType}`;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+        <input type="checkbox" id="${cbId}" data-coach="${coach}" data-type="${t}"
+          ${checked} style="width:16px;height:16px;accent-color:var(--green-mid);flex:none">
+        <label for="${cbId}" style="flex:1;font-size:13px;cursor:pointer">${t}</label>
+        <input type="number" min="0" placeholder="堂（可空白）"
+          data-coach="${coach}" data-type="${t}" data-role="fixed-count"
+          value="${cnt}"
+          style="width:90px;padding:4px 8px;font-size:12px;text-align:center;border:1.5px solid var(--sand);border-radius:6px;background:#fafaf8"
+          title="預填堂數（留空則教練自填）">
+      </div>`;
+    }).join('');
+
+    return `<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--sand)">
+      <div style="font-size:14px;font-weight:700;color:var(--green-dark);margin-bottom:6px">${coach}</div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
+function saveFixedClasses() {
+  const newFixed = {};
+  // Collect checked items per coach
+  document.querySelectorAll('input[type="checkbox"][data-coach][data-type]').forEach(cb => {
+    const coach = cb.dataset.coach;
+    const type  = cb.dataset.type;
+    if (cb.checked) {
+      if (!newFixed[coach]) newFixed[coach] = [];
+      // Find matching count input
+      const countEl = document.querySelector(
+        `input[data-role="fixed-count"][data-coach="${coach}"][data-type="${type}"]`
+      );
+      const cnt = countEl ? (parseInt(countEl.value) || '') : '';
+      newFixed[coach].push({ name: type, count: cnt });
+    }
+  });
+  fixedClasses = newFixed;
+  localStorage.setItem(FIXED_CLASSES_KEY, JSON.stringify(fixedClasses));
+  showToast('✅ 固定課程已儲存');
+}
+
+function renderBenchSettings() {
+  const el = document.getElementById('bench-settings');
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 80px 80px 28px;gap:6px;margin-bottom:8px">
+      <div style="font-size:11px;color:var(--text-muted);font-weight:700;padding:4px 0">教練</div>
+      <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-align:center;padding:4px 0">達標</div>
+      <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-align:center;padding:4px 0">獎金</div>
+      <div></div>
+    </div>` +
+    coaches.map(c => {
+      const b = benchmarks[c] || {};
+      const hist = (benchHistory[c] || []).slice().sort((a,b2) => b2.from.localeCompare(a.from));
+      const histId = 'bh_' + c.replace(/[^a-zA-Z0-9]/g,'_');
+      const histRows = hist.map(h => {
+        const [y,m] = h.from.split('-').map(Number);
+        return `<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);padding:2px 0">
+          <span>${y}/${m} 起</span>
+          <span>達標 <b>${h.target}</b>　獎金 <b>${h.bonus||'—'}</b>${h.note ? `　<span style="color:var(--gold)">${h.note}</span>` : ''}</span>
+        </div>`;
+      }).join('');
+      return `
+        <div style="padding:6px 0;border-bottom:1px solid var(--sand)">
+          <div style="display:grid;grid-template-columns:1fr 80px 80px 28px;gap:6px;align-items:center">
+            <div style="font-size:14px;font-weight:600">${c}</div>
+            <input type="number" min="0" class="bench-input" data-coach="${c}" data-type="target"
+              value="${b.target||0}" style="text-align:center">
+            <input type="number" min="0" class="bench-input" data-coach="${c}" data-type="bonus"
+              value="${b.bonus||0}" style="text-align:center">
+            <button onclick="toggleBenchHistory('${histId}')"
+              style="background:none;border:none;cursor:pointer;font-size:14px;padding:0;color:var(--text-muted)"
+              title="查看歷史">🕐</button>
+          </div>
+          ${hist.length > 0 ? `
+          <div id="${histId}" style="display:none;background:var(--sand);border-radius:6px;padding:8px 10px;margin-top:6px">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">歷史標準記錄</div>
+            ${histRows}
+          </div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function toggleBenchHistory(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+function addCoach() {
+  const name = document.getElementById('new-coach-name').value.trim();
+  if (!name) { showToast('請輸入教練姓名'); return; }
+  if (coaches.includes(name)) { showToast('已有此教練'); return; }
+  coaches.push(name);
+  saveCoaches();
+  renderCoachMgmt();
+  renderBenchSettings();
+  document.getElementById('new-coach-name').value = '';
+  showToast('已新增 ' + name);
+}
+
+function removeCoach(i) {
+  if (!confirm(`確定移除 ${coaches[i]}？`)) return;
+  coaches.splice(i, 1);
+  saveCoaches();
+  renderCoachMgmt();
+  renderBenchSettings();
+}
+
+function saveCoaches() {
+  localStorage.setItem(COACHES_KEY, JSON.stringify(coaches));
+  // Sync to GAS if connected
+  if (gasUrl) syncCoachesToGas();
+  // Rebuild coach select
+  buildCoachSelect();
+}
+
+function buildCoachSelect() {
+  const sel = document.getElementById('coach-select');
+  sel.innerHTML = '<option value="">— 請選擇 —</option>';
+  coaches.forEach(n => {
+    const o = document.createElement('option');
+    o.value = n; o.textContent = n;
+    sel.appendChild(o);
+  });
+}
+
+function applyDefault() {
+  const t = parseInt(document.getElementById('default-target').value) || 0;
+  const b = parseInt(document.getElementById('default-bonus').value) || 0;
+  document.querySelectorAll('.bench-input[data-type="target"]').forEach(el => el.value = t);
+  document.querySelectorAll('.bench-input[data-type="bonus"]').forEach(el => el.value = b);
+}
+
+function saveBenchmarks() {
+  const newBench = {};
+  const noteEl = document.getElementById('bench-save-note');
+  const note = noteEl ? noteEl.value.trim() : '';
+  document.querySelectorAll('.bench-input').forEach(el => {
+    const coach = el.dataset.coach;
+    const type  = el.dataset.type;
+    if (!newBench[coach]) newBench[coach] = {};
+    newBench[coach][type] = parseInt(el.value) || 0;
+  });
+
+  // Write history for coaches whose values changed
+  const effectivePeriod = currentPeriodKey();
+  Object.keys(newBench).forEach(coach => {
+    const prev = benchmarks[coach] || {};
+    const next = newBench[coach];
+    if (prev.target !== next.target || prev.bonus !== next.bonus) {
+      if (!benchHistory[coach]) benchHistory[coach] = [];
+      // Remove any existing entry for the same period (overwrite)
+      benchHistory[coach] = benchHistory[coach].filter(e => e.from !== effectivePeriod);
+      benchHistory[coach].push({
+        target: next.target,
+        bonus:  next.bonus,
+        from:   effectivePeriod,
+        savedAt: new Date().toISOString(),
+        note:   note
+      });
+    }
+  });
+
+  benchmarks = newBench;
+  localStorage.setItem(BENCH_KEY, JSON.stringify(benchmarks));
+  localStorage.setItem(BENCH_HISTORY_KEY, JSON.stringify(benchHistory));
+  showToast('✅ 設定已儲存，歷史已記錄');
+  renderBenchSettings(); // refresh to show history
+}
+
+function saveGasUrl() {
+  gasUrl = document.getElementById('gas-url').value.trim();
+  localStorage.setItem(GAS_KEY, gasUrl);
+  showToast('✅ 網址已儲存');
+}
+
+async function testGas() {
+  const url = document.getElementById('gas-url').value.trim();
+  const res = document.getElementById('gas-test-result');
+  res.innerHTML = '<span class="spinner"></span> 測試中…';
+  try {
+    const r = await fetch(url + '?type=ping');
+    const d = await r.json();
+    res.innerHTML = `<span style="color:var(--green-mid)">✅ 連線成功</span>`;
+  } catch(e) {
+    res.innerHTML = `<span style="color:var(--alert)">❌ 連線失敗：${e.message}</span>`;
+  }
+}
+
+function changeAdminPw() {
+  const p1 = document.getElementById('new-pw1').value;
+  const p2 = document.getElementById('new-pw2').value;
+  if (!p1) { showToast('請輸入新密碼'); return; }
+  if (p1 !== p2) { showToast('兩次密碼不一致'); return; }
+  adminPw = p1;
+  localStorage.setItem(ADMIN_PW_KEY, p1);
+  showToast('✅ 密碼已更新');
+  document.getElementById('new-pw1').value = '';
+  document.getElementById('new-pw2').value = '';
+}
+
+// ══════════════════════════════════════════
+// DATA LAYER
+// ══════════════════════════════════════════
+const localDataKey = 'hope_classes_data';
+function saveLocal(record) {
+  const data = JSON.parse(localStorage.getItem(localDataKey) || '[]');
+  data.push(record);
+  localStorage.setItem(localDataKey, JSON.stringify(data));
+}
+
+function loadLocal(periodKey) {
+  const data = JSON.parse(localStorage.getItem(localDataKey) || '[]');
+  return data.filter(r => r.periodKey === periodKey);
+}
+
+const _cache = {};
+async function fetchReports(periodKey) {
+  if (_cache[periodKey] !== undefined) return _cache[periodKey];
+  if (!gasUrl) {
+    const local = loadLocal(periodKey);
+    _cache[periodKey] = local;
+    return local;
+  }
+  try {
+    const r = await fetch(gasUrl + `?type=class_reports&period=${periodKey}`);
+    const d = await r.json();
+    _cache[periodKey] = d.data || [];
+    return _cache[periodKey];
+  } catch(e) {
+    const local = loadLocal(periodKey);
+    return local;
+  }
+}
+
+function invalidateCache(periodKey) {
+  delete _cache[periodKey];
+}
+
+async function postGas(payload) {
+  const r = await fetch(gasUrl, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  const d = await r.json();
+  if (d.status !== 'ok') throw new Error(d.message || '伺服器錯誤');
+  invalidateCache(payload.periodKey);
+  saveLocal(payload); // also save locally as backup
+}
+
+async function syncCoachesToGas() {
+  if (!gasUrl) return;
+  try {
+    await fetch(gasUrl, {
+      method: 'POST',
+      body: JSON.stringify({ type: 'coaches', coaches })
+    });
+  } catch(e) {}
+}
+
+function aggregateByCoach(data) {
+  const map = {};
+  data.forEach(r => {
+    if (!map[r.coach]) map[r.coach] = 0;
+    (r.classes||[]).forEach(c => { map[r.coach] += c.count; });
+  });
+  return map;
+}
+
+// ══════════════════════════════════════════
+// GAS CODE TEMPLATE
+// ══════════════════════════════════════════
+function getGasCode() {
+  return `// HOPE 課程回報系統 GAS
+// 部署為「網路應用程式」，執行身份：我、存取對象：所有人
+
+const SHEET_ID = 'YOUR_GOOGLE_SHEET_ID'; // 替換為你的試算表 ID
+
+function doPost(e) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const ss = SpreadsheetApp.openById(SHEET_ID);
+
+    // 同步教練名單
+    if (data.type === 'coaches') {
+      const s = getOrCreateSheet(ss, '教練名單', ['教練姓名']);
+      s.clearContents(); s.appendRow(['教練姓名']);
+      (data.coaches || []).forEach(n => s.appendRow([n]));
+      return ok();
+    }
+
+    // 課程回報
+    if (data.type === 'class_report') {
+      const s = getOrCreateSheet(ss, '課程回報', [
+        '送出時間','教練','週次起','週次訖','課程項目(JSON)','本週總堂數','備註','期別'
+      ]);
+      const classes = data.classes || [];
+      const weekTotal = classes.reduce((s, c) => s + (c.count || 0), 0);
+      s.appendRow([
+        data.ts, data.coach,
+        data.weekStart, data.weekEnd,
+        JSON.stringify(classes),
+        weekTotal,
+        data.note || '',
+        data.periodKey
+      ]);
+      return ok();
+    }
+
+    return ok();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function doGet(e) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const p = e.parameter;
+
+  if (p.type === 'ping') return json({ status: 'ok' });
+
+  if (p.type === 'coaches') {
+    const s = ss.getSheetByName('教練名單');
+    const coaches = s && s.getLastRow() > 1
+      ? s.getRange(2, 1, s.getLastRow() - 1, 1).getValues().flat().filter(Boolean) : [];
+    return json({ status: 'ok', coaches });
+  }
+
+  if (p.type === 'class_reports') {
+    const period = p.period || '';
+    const s = ss.getSheetByName('課程回報');
+    if (!s || s.getLastRow() < 2) return json({ status: 'ok', data: [] });
+    const [h, ...rows] = s.getDataRange().getValues();
+    const all = rows.map(r => Object.fromEntries(h.map((k, i) => [k, r[i] ?? ''])));
+    const filtered = period ? all.filter(r => r['期別'] === period) : all;
+    const result = filtered.map(r => ({
+      coach: r['教練'],
+      ts: r['送出時間'],
+      weekStart: r['週次起'],
+      weekEnd: r['週次訖'],
+      classes: (() => { try { return JSON.parse(r['課程項目(JSON)'] || '[]'); } catch(_) { return []; } })(),
+      note: r['備註'],
+      periodKey: r['期別']
+    }));
+    return json({ status: 'ok', data: result });
+  }
+
+  return json({ status: 'error', message: 'unknown type' });
+}
+
+function getOrCreateSheet(ss, name, headers) {
+  let s = ss.getSheetByName(name);
+  if (!s) { s = ss.insertSheet(name); s.appendRow(headers); }
+  return s;
+}
+function ok()    { return json({ status: 'ok' }); }
+function json(o) {
+  return ContentService.createTextOutput(JSON.stringify(o))
+    .setMimeType(ContentService.MimeType.JSON);
+}`;
+}
+
+
+// ══════════════════════════════════════════
+// EXPORT: EXCEL & PDF
+// ══════════════════════════════════════════
+
+async function getExportData() {
+  const fromKey = document.getElementById('export-period-from')?.value;
+  const toKey   = document.getElementById('export-period-to')?.value;
+  const scope   = document.getElementById('export-scope')?.value || 'current';
+  const chartSel = document.getElementById('chart-coach-sel');
+  const choice  = chartSel ? chartSel.value : '__all__';
+
+  // Collect period keys in range
+  const allKeys = getPeriodKeys(18);
+  const rangeKeys = allKeys.filter(k => k >= fromKey && k <= toKey);
+  if (rangeKeys.length === 0) return null;
+
+  const status = document.getElementById('export-status');
+  if (status) status.textContent = '⏳ 資料整理中…';
+
+  // Determine which coaches to export
+  const targetCoaches = (scope === 'all_coaches' || choice === '__all__')
+    ? coaches
+    : [choice];
+
+  // Fetch all period data
+  const periodDataMap = {};
+  await Promise.all(rangeKeys.map(async k => {
+    periodDataMap[k] = await fetchReports(k);
+  }));
+
+  // Build per-coach totals per period
+  const rows = targetCoaches.map(name => {
+    const bench = getBenchForPeriod(name, rangeKeys[rangeKeys.length - 1]);
+    const row = { 教練: name };
+    let grandTotal = 0;
+    rangeKeys.forEach(k => {
+      const data = periodDataMap[k] || [];
+      const total = data.filter(r => r.coach === name)
+        .reduce((s, r) => s + (r.classes || []).reduce((ss, c) => ss + c.count, 0), 0);
+      row[periodLabel(k)] = total || 0;
+      grandTotal += total;
+    });
+    row['合計'] = grandTotal;
+    row['達標標準'] = bench.target || '—';
+    row['獎金標準'] = bench.bonus  || '—';
+    return row;
+  });
+
+  // Detailed weekly rows per coach
+  const detailRows = [];
+  targetCoaches.forEach(name => {
+    rangeKeys.forEach(k => {
+      const data = periodDataMap[k] || [];
+      const mine = data.filter(r => r.coach === name);
+      mine.sort((a,b) => (a.weekStart||'').localeCompare(b.weekStart||''));
+      mine.forEach(r => {
+        const weekTotal = (r.classes||[]).reduce((s,c)=>s+c.count,0);
+        detailRows.push({
+          教練: name,
+          期別: periodLabel(k),
+          週次起: r.weekStart || '',
+          週次訖: r.weekEnd   || '',
+          課程明細: (r.classes||[]).map(c=>`${c.name}×${c.count}`).join('、'),
+          本週總堂: weekTotal,
+          備註: r.note || ''
+        });
+      });
+    });
+  });
+
+  return { rows, detailRows, rangeKeys, targetCoaches };
+}
+
+async function exportExcel() {
+  const result = await getExportData();
+  if (!result) { showToast('請先選擇期間'); return; }
+  const { rows, detailRows } = result;
+
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: Summary
+  const ws1 = XLSX.utils.json_to_sheet(rows);
+  // Column widths
+  ws1['!cols'] = [{ wch: 12 }].concat(
+    Object.keys(rows[0] || {}).slice(1).map(() => ({ wch: 14 }))
+  );
+  // Header style (where supported)
+  XLSX.utils.book_append_sheet(wb, ws1, '各期統計');
+
+  // Sheet 2: Weekly detail
+  const ws2 = XLSX.utils.json_to_sheet(detailRows);
+  ws2['!cols'] = [
+    { wch: 10 }, { wch: 20 }, { wch: 12 }, { wch: 12 },
+    { wch: 40 }, { wch: 10 }, { wch: 20 }
+  ];
+  XLSX.utils.book_append_sheet(wb, ws2, '週次明細');
+
+  const scope = document.getElementById('export-scope')?.value;
+  const choice = document.getElementById('chart-coach-sel')?.value;
+  const label = scope === 'all_coaches' ? '全體' : (choice === '__all__' ? '全體' : choice);
+  const fname = `HOPE課程統計_${label}_${new Date().toISOString().slice(0,10)}.xlsx`;
+
+  XLSX.writeFile(wb, fname);
+  const status = document.getElementById('export-status');
+  if (status) status.textContent = `✅ 已下載 ${fname}`;
+}
+
+async function exportPDF() {
+  const result = await getExportData();
+  if (!result) { showToast('請先選擇期間'); return; }
+  const { rows, detailRows, rangeKeys, targetCoaches } = result;
+
+  const status = document.getElementById('export-status');
+  if (status) status.textContent = '⏳ 產生 PDF 中…';
+
+  const scope = document.getElementById('export-scope')?.value;
+  const choice = document.getElementById('chart-coach-sel')?.value;
+  const reportLabel = scope === 'all_coaches' ? '全體教練' : (choice === '__all__' ? '全體教練' : choice);
+  const fromKey = document.getElementById('export-period-from')?.value;
+  const toKey   = document.getElementById('export-period-to')?.value;
+
+  // Build PDF HTML and open in new window for print
+  const periodCols = rangeKeys.map(k => periodLabel(k));
+
+  const summaryHeader = ['教練', ...periodCols, '合計', '達標標準', '獎金標準'];
+  const summaryRows = rows.map(r => summaryHeader.map(h => r[h] ?? ''));
+
+  const detailHeader = ['教練','期別','週次起','週次訖','課程明細','本週總堂','備註'];
+  const detailRows2 = detailRows.map(r => detailHeader.map(h => r[h] ?? ''));
+
+  const tdStyle = 'border:1px solid #ccc;padding:5px 8px;font-size:11px;';
+  const thStyle = 'border:1px solid #aaa;padding:5px 8px;font-size:11px;background:#1a3a2a;color:#fff;font-weight:700;';
+
+  function makeTable(headers, dataRows) {
+    return `<table style="border-collapse:collapse;width:100%;margin-bottom:24px">
+      <thead><tr>${headers.map(h=>`<th style="${thStyle}">${h}</th>`).join('')}</tr></thead>
+      <tbody>${dataRows.map(row=>`<tr>${row.map(c=>`<td style="${tdStyle}">${c}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table>`;
+  }
+
+  // Capture current chart as image
+  const canvas = document.getElementById('main-chart');
+  const chartImg = canvas ? canvas.toDataURL('image/png') : '';
+
+  const html = `<!DOCTYPE html><html><head>
+  <meta charset="UTF-8">
+  <title>HOPE 課程報表</title>
+  <style>
+    body { font-family: 'PingFang TC','Microsoft JhengHei',sans-serif; padding: 24px; color: #1c1c1c; }
+    h1 { color: #1a3a2a; font-size: 18px; margin-bottom: 4px; }
+    .meta { font-size: 12px; color: #666; margin-bottom: 20px; }
+    h2 { font-size: 14px; color: #2d6a4f; margin: 20px 0 8px; border-left: 4px solid #c9a84c; padding-left: 8px; }
+    .chart-img { width: 100%; max-width: 600px; margin-bottom: 20px; border: 1px solid #e9e4d8; border-radius: 8px; }
+    @media print {
+      @page { margin: 16mm; }
+      button { display: none; }
+    }
+  </style>
+  </head><body>
+  <h1>⛳ HOPE 課程統計報表</h1>
+  <div class="meta">
+    對象：${reportLabel}　｜　期間：${periodLabel(fromKey)} — ${periodLabel(toKey)}　｜　產出時間：${new Date().toLocaleString('zh-TW')}
+  </div>
+
+  ${chartImg ? `<h2>課堂數趨勢圖</h2><img class="chart-img" src="${chartImg}">` : ''}
+
+  <h2>各期統計總表</h2>
+  ${makeTable(summaryHeader, summaryRows)}
+
+  <h2>週次明細</h2>
+  ${makeTable(detailHeader, detailRows2)}
+
+  <div style="text-align:center;margin-top:30px">
+    <button onclick="window.print()" style="background:#1a3a2a;color:#fff;border:none;padding:10px 28px;border-radius:8px;font-size:14px;cursor:pointer">🖨️ 列印 / 另存 PDF</button>
+  </div>
+  </body></html>`;
+
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => win.print(), 600);
+
+  if (status) status.textContent = '✅ PDF 已在新視窗開啟，請選「另存為 PDF」';
+}
+
+function copyGasCode() {
+  navigator.clipboard.writeText(getGasCode()).then(() => showToast('✅ 已複製 GAS 程式碼'));
+}
+
+// ══════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════
+function fmtDate(d) {
+  return d.toISOString().slice(0,10);
+}
+
+function showToast(msg, duration = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ══════════════════════════════════════════
+// INIT ON LOAD
+// ══════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  buildCoachSelect();
+  updatePeriodDisplay();
+  showCoachLogin();
+});
+</script>
+</body>
+</html>
