@@ -1199,10 +1199,9 @@ async function submitReport() {
       saveLocal(payload);
     }
     showToast('✅ 回報成功！');
-    document.getElementById('class-rows').innerHTML = '';
-    addClassRow(); addClassRow();
     document.getElementById('note').value = '';
-    updateWeekTotal();
+    // 重新初始化：重設週次、帶回固定課程、清空堂數
+    initCoachApp();
     loadCoachPeriodSummary();
   } catch(e) {
     showToast('❌ 送出失敗：' + e.message);
@@ -2096,9 +2095,10 @@ async function postGas(payload) {
     mode: 'no-cors',
     body: JSON.stringify(payload)
   });
-  // no-cors 無法讀取回應，假設成功（資料確實會送到 GAS）
-  invalidateCache(payload.periodKey);
+  // no-cors 無法讀取回應，假設成功
+  // 存入 localStorage 讓本期累計立即顯示，同時清快取讓下次從 GAS 重抓
   saveLocal(payload);
+  invalidateCache(payload.periodKey);
   showSyncStatus(true, '回報已儲存');
 }
 
@@ -2476,7 +2476,11 @@ function copyGasCode() {
 // UTILS
 // ══════════════════════════════════════════
 function fmtDate(d) {
-  return d.toISOString().slice(0,10);
+  // 確保用本地時間，避免時區導致日期跑掉
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + dd;
 }
 
 function showToast(msg, duration = 2500) {
