@@ -778,7 +778,18 @@ const BENCH_HISTORY_KEY = 'hope_classes_bench_history';
 const FIXED_CLASSES_KEY  = 'hope_classes_fixed';  // { coachName: [{name, count}] }
 
 const DEFAULT_COACHES = ['Carol','Adam','Kenny','Joanne','Vis','Kevin','Allen','Sean','Ava','Howard','Ella','Elly','Gary','Foin','William'];
-const DEFAULT_COURSE_TYPES = ['個人課','半私課（2人）','小團課（3-5人）','短桿精進班','果嶺班','下場班','青少年課','體驗課'];
+const DEFAULT_COURSE_TYPES = [
+  'HOPE 系統課程',
+  '下場班(2人/3人套組) 未簽課',
+  '小Ava下場班',
+  'Junior program',
+  '橘世代',
+  '特殊團體：原子班',
+  '特殊團體：假日兒童團體班',
+  '特殊團體：假日成人團體班',
+  '特殊團體：短切推固定班',
+  '特殊團體：7月夏令營'
+];
 
 let currentRole = null; // 'coach' | 'admin'
 let currentCoach = null;
@@ -903,11 +914,14 @@ function logout() {
 // ══════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════
-function initApp() {
+async function initApp() {
   document.getElementById('coach-select-wrap').style.display = 'none';
   document.getElementById('admin-login-wrap').style.display = 'none';
   document.getElementById('main-app').style.display = '';
   document.getElementById('btn-logout').style.display = '';
+
+  // 先從 GAS 同步最新設定（課程項目、教練名單、固定課程）
+  await syncSettingsFromGas();
 
   if (currentRole === 'coach') {
     document.getElementById('coach-nav').style.display = 'flex';
@@ -920,6 +934,32 @@ function initApp() {
   }
 
   updatePeriodDisplay();
+}
+
+async function syncSettingsFromGas() {
+  if (!gasUrl) return;
+  try {
+    const r = await fetch(gasUrl + '?type=settings');
+    const d = await r.json();
+    if (d.status !== 'ok') return;
+
+    if (d.courseTypes && d.courseTypes.length > 0) {
+      courseTypes = d.courseTypes;
+      localStorage.setItem(COURSE_TYPES_KEY, JSON.stringify(courseTypes));
+    }
+    if (d.coaches && d.coaches.length > 0) {
+      coaches = d.coaches;
+      localStorage.setItem(COACHES_KEY, JSON.stringify(coaches));
+      buildCoachSelect();
+    }
+    if (d.fixedClasses) {
+      fixedClasses = d.fixedClasses;
+      localStorage.setItem(FIXED_CLASSES_KEY, JSON.stringify(fixedClasses));
+    }
+  } catch(e) {
+    // 網路失敗時沿用 localStorage 快取，不影響使用
+    console.log('Settings sync failed, using local cache:', e.message);
+  }
 }
 
 function updatePeriodDisplay() {
@@ -1651,6 +1691,7 @@ function moveCourseType(i, dir) {
 
 function saveCourseTypes() {
   localStorage.setItem(COURSE_TYPES_KEY, JSON.stringify(courseTypes));
+  syncSettingsToGas();
 }
 
 function renderFixedClassSettings() {
@@ -1706,6 +1747,7 @@ function saveFixedClasses() {
   });
   fixedClasses = newFixed;
   localStorage.setItem(FIXED_CLASSES_KEY, JSON.stringify(fixedClasses));
+  syncSettingsToGas();
   showToast('✅ 固定課程已儲存');
 }
 
@@ -1777,10 +1819,8 @@ function removeCoach(i) {
 
 function saveCoaches() {
   localStorage.setItem(COACHES_KEY, JSON.stringify(coaches));
-  // Sync to GAS if connected
-  if (gasUrl) syncCoachesToGas();
-  // Rebuild coach select
   buildCoachSelect();
+  syncSettingsToGas();
 }
 
 function buildCoachSelect() {
@@ -1918,13 +1958,24 @@ async function postGas(payload) {
 }
 
 async function syncCoachesToGas() {
+  return syncSettingsToGas();
+}
+
+async function syncSettingsToGas() {
   if (!gasUrl) return;
   try {
     await fetch(gasUrl, {
       method: 'POST',
-      body: JSON.stringify({ type: 'coaches', coaches })
+      body: JSON.stringify({
+        type: 'settings',
+        coaches,
+        courseTypes,
+        fixedClasses
+      })
     });
-  } catch(e) {}
+  } catch(e) {
+    console.log('Settings sync to GAS failed:', e.message);
+  }
 }
 
 function aggregateByCoach(data) {
@@ -1952,7 +2003,35 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.openById(SHEET_ID);
 
-    // 同步教練名單
+    // 同步所有設定（教練、課程項目、固定課程）
+    if (data.type === 'settings') {
+      const ss2 = SpreadsheetApp.openById(SHEET_ID);
+      // 教練名單
+      const sc = getOrCreateSheet(ss2, '教練名單', ['教練姓名']);
+      sc.clearContents(); sc.appendRow(['教練姓名']);
+      (data.coaches || []).forEach(n => sc.appendRow([n]));
+      // 課程項目
+      const st = getOrCreateSheet(ss2, '課程項目', ['課程名稱']);
+      st.clearContents(); st.appendRow(['課程名稱']);
+      (data.courseTypes || []).forEach(t => st.appendRow([t]));
+      // 固定課程 (JSON)
+      const sf = getOrCreateSheet(ss2, '系統設定', ['設定名稱', '設定值']);
+      // Update or insert fixedClasses row
+      const sfData = sf.getDataRange().getValues();
+      let fixedRow = -1;
+      for (let i = 1; i < sfData.length; i++) {
+        if (sfData[i][0] === 'fixedClasses') { fixedRow = i + 1; break; }
+      }
+      const fixedJson = JSON.stringify(data.fixedClasses || {});
+      if (fixedRow > 0) {
+        sf.getRange(fixedRow, 2).setValue(fixedJson);
+      } else {
+        sf.appendRow(['fixedClasses', fixedJson]);
+      }
+      return ok();
+    }
+
+    // 同步教練名單（舊版相容）
     if (data.type === 'coaches') {
       const s = getOrCreateSheet(ss, '教練名單', ['教練姓名']);
       s.clearContents(); s.appendRow(['教練姓名']);
@@ -1989,6 +2068,29 @@ function doGet(e) {
   const p = e.parameter;
 
   if (p.type === 'ping') return json({ status: 'ok' });
+
+  if (p.type === 'settings') {
+    // 課程項目
+    const st = ss.getSheetByName('課程項目');
+    const courseTypes = st && st.getLastRow() > 1
+      ? st.getRange(2, 1, st.getLastRow() - 1, 1).getValues().flat().filter(Boolean) : [];
+    // 教練名單
+    const sc = ss.getSheetByName('教練名單');
+    const coaches = sc && sc.getLastRow() > 1
+      ? sc.getRange(2, 1, sc.getLastRow() - 1, 1).getValues().flat().filter(Boolean) : [];
+    // 固定課程
+    let fixedClasses = {};
+    const sf = ss.getSheetByName('系統設定');
+    if (sf && sf.getLastRow() > 1) {
+      const rows = sf.getDataRange().getValues();
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i][0] === 'fixedClasses') {
+          try { fixedClasses = JSON.parse(rows[i][1] || '{}'); } catch(_) {}
+        }
+      }
+    }
+    return json({ status: 'ok', courseTypes, coaches, fixedClasses });
+  }
 
   if (p.type === 'coaches') {
     const s = ss.getSheetByName('教練名單');
