@@ -571,7 +571,7 @@
 
     <!-- This period summary for coach -->
     <div class="card" id="coach-period-card">
-      <div class="card-title">🗓️ 本期累計</div>
+      <div class="card-title" id="coach-period-title">🗓️ 本期累計</div>
       <div id="coach-period-summary" class="empty-state">
         <div class="empty-icon">📊</div>
         <p>載入中…</p>
@@ -588,6 +588,7 @@
         <select id="my-period-sel" onchange="loadMyHistory()"></select>
         <button class="period-nav-btn" onclick="shiftMyPeriod(-1)">›</button>
       </div>
+      <div id="my-data-hint" style="margin-bottom:12px"></div>
       <div id="my-history-list"></div>
     </div>
   </div>
@@ -1223,9 +1224,14 @@ async function submitReport() {
     }
     showToast('✅ 回報成功！');
     document.getElementById('note').value = '';
+    const submittedPeriod = payload.periodKey;
     // 重新初始化：重設週次、帶回固定課程、清空堂數
     initCoachApp();
-    loadCoachPeriodSummary();
+    // 顯示剛填的那一期累計
+    loadCoachPeriodSummary(submittedPeriod);
+    // 我的紀錄也切到剛填的期別
+    const mySel = document.getElementById('my-period-sel');
+    if (mySel) { mySel.value = submittedPeriod; }
   } catch(e) {
     showToast('❌ 送出失敗：' + e.message);
   }
@@ -1234,9 +1240,14 @@ async function submitReport() {
   btn.innerHTML = '✓ 送出回報';
 }
 
-async function loadCoachPeriodSummary() {
-  const key = currentPeriodKey();
+async function loadCoachPeriodSummary(periodKey) {
+  // 預設用填寫週次所屬期別，沒有就用本期
+  const wsEl = document.getElementById('week-start');
+  const key = periodKey || (wsEl && wsEl.value ? getPeriodKey(parseLocalDate(wsEl.value)) : currentPeriodKey());
   const card = document.getElementById('coach-period-summary');
+  // 更新標題顯示是哪一期
+  const titleEl = document.getElementById('coach-period-title');
+  if (titleEl) titleEl.textContent = '🗓️ ' + periodLabel(key) + ' 累計';
   card.innerHTML = '<span class="spinner"></span> 載入中…';
 
   try {
@@ -1301,6 +1312,8 @@ async function loadMyHistory() {
     const data = await fetchReports(key);
     const mine = data.filter(r => r.coach === currentCoach);
     if (mine.length === 0) {
+      // 查無資料時，自動掃描其他期別，提示使用者資料在哪
+      _findMyDataInOtherPeriods(key);
       list.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>本期無回報</p></div>';
       return;
     }
@@ -1326,6 +1339,34 @@ async function loadMyHistory() {
     list.innerHTML = html;
   } catch(e) {
     list.innerHTML = `<p style="font-size:12px;color:var(--text-muted)">無法載入</p>`;
+  }
+}
+
+async function _findMyDataInOtherPeriods(currentKey) {
+  // 掃描最近 12 期，找出這位教練實際有資料的期別
+  const keys = getPeriodKeys(12);
+  const found = [];
+  await Promise.all(keys.map(async k => {
+    if (k === currentKey) return;
+    try {
+      const data = await fetchReports(k);
+      const mine = data.filter(r => r.coach === currentCoach);
+      if (mine.length > 0) {
+        let total = 0;
+        mine.forEach(r => (r.classes || []).forEach(c => { total += c.count; }));
+        found.push({ key: k, count: mine.length, total: total });
+      }
+    } catch(e) {}
+  }));
+  if (found.length > 0) {
+    const hint = document.getElementById('my-data-hint');
+    if (hint) {
+      found.sort((a, b) => b.key.localeCompare(a.key));
+      const links = found.map(f =>
+        `<button class="btn btn-ghost" style="margin:4px" onclick="document.getElementById('my-period-sel').value='${f.key}';loadMyHistory()">${periodLabel(f.key)}（${f.total}堂）</button>`
+      ).join('');
+      hint.innerHTML = '<p style="color:var(--green-mid);margin-bottom:8px">💡 你在其他期別有回報記錄：</p>' + links;
+    }
   }
 }
 
