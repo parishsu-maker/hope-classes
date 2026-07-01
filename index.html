@@ -834,7 +834,10 @@ if (!localStorage.getItem(BENCH_HISTORY_KEY)) {
   localStorage.setItem(BENCH_HISTORY_KEY, JSON.stringify(benchHistory));
 }
 // fixedClasses: { coachName: [{name, count}] }
-let fixedClasses   = JSON.parse(localStorage.getItem(FIXED_CLASSES_KEY) || '{}');
+let fixedClasses   = JSON.parse(localStorage.getItem(FIXED_CLASSES_KEY) || 'null') || {"Carol": [{"name": "HOPE 系統課程", "count": ""}, {"name": "下場班(2人/3人套組) 未簽課", "count": ""}, {"name": "小Ava下場班", "count": ""}]};
+if (!localStorage.getItem(FIXED_CLASSES_KEY)) {
+  localStorage.setItem(FIXED_CLASSES_KEY, JSON.stringify(fixedClasses));
+}
 let adminPw = localStorage.getItem(ADMIN_PW_KEY) || 'carolhope2026';
 let allData = []; // fetched from GAS
 let chartInstance = null;
@@ -1002,17 +1005,18 @@ async function syncSettingsFromGas() {
       localStorage.setItem(COACHES_KEY, JSON.stringify(coaches));
       if (JSON.stringify(coaches) !== prev) updated = true;
     }
-    if (d.fixedClasses) {
+    if (Object.prototype.hasOwnProperty.call(d, 'fixedClasses')) {
+      // GAS 有回傳這個 key（即使是空的）才更新，確保後台取消勾選也能同步
       const prev = JSON.stringify(fixedClasses);
       fixedClasses = d.fixedClasses;
       localStorage.setItem(FIXED_CLASSES_KEY, JSON.stringify(fixedClasses));
       if (JSON.stringify(fixedClasses) !== prev) updated = true;
     }
-    if (d.benchmarks && Object.keys(d.benchmarks).length > 0) {
+    if (Object.prototype.hasOwnProperty.call(d, 'benchmarks') && Object.keys(d.benchmarks).length > 0) {
       benchmarks = d.benchmarks;
       localStorage.setItem(BENCH_KEY, JSON.stringify(benchmarks));
     }
-    if (d.benchHistory && Object.keys(d.benchHistory).length > 0) {
+    if (Object.prototype.hasOwnProperty.call(d, 'benchHistory') && Object.keys(d.benchHistory).length > 0) {
       benchHistory = d.benchHistory;
       localStorage.setItem(BENCH_HISTORY_KEY, JSON.stringify(benchHistory));
     }
