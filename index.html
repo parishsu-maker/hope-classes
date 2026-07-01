@@ -523,17 +523,17 @@
 
   <!-- Nav tabs (coach) -->
   <div class="nav-tabs" id="coach-nav">
-    <div class="nav-tab active" onclick="switchTab('report')">📝 填寫課程</div>
-    <div class="nav-tab" onclick="switchTab('myhistory')">📋 我的紀錄</div>
+    <div class="nav-tab active" onclick="switchTab(\'report\', event)">📝 填寫課程</div>
+    <div class="nav-tab" onclick="switchTab(\'myhistory\', event)">📋 我的紀錄</div>
   </div>
 
   <!-- Nav tabs (admin) -->
   <div class="nav-tabs" id="admin-nav" style="display:none">
-    <div class="nav-tab active" onclick="switchTab('overview')">📊 總覽</div>
-    <div class="nav-tab" onclick="switchTab('detail')">👤 教練明細</div>
-    <div class="nav-tab" onclick="switchTab('chart')">📈 圖表</div>
-    <div class="nav-tab" onclick="switchTab('settings')">⚙️ 後台設定</div>
-    <div class="nav-tab" onclick="switchTab('devsettings')">🔧 程式設定</div>
+    <div class="nav-tab active" onclick="switchTab(\'overview\', event)">📊 總覽</div>
+    <div class="nav-tab" onclick="switchTab(\'detail\', event)">👤 教練明細</div>
+    <div class="nav-tab" onclick="switchTab(\'chart\', event)">📈 圖表</div>
+    <div class="nav-tab" onclick="switchTab(\'settings\', event)">⚙️ 後台設定</div>
+    <div class="nav-tab" onclick="switchTab(\'devsettings\', event)">🔧 程式設定</div>
   </div>
 
   <!-- ── Coach: Report page ── -->
@@ -584,9 +584,9 @@
     <div class="card">
       <div class="card-title">📋 我的回報紀錄</div>
       <div class="period-nav">
-        <button class="period-nav-btn" onclick="shiftMyPeriod(-1)">‹</button>
+        <button class="period-nav-btn" onclick="shiftMyPeriod(1)">‹</button>
         <select id="my-period-sel" onchange="loadMyHistory()"></select>
-        <button class="period-nav-btn" onclick="shiftMyPeriod(1)">›</button>
+        <button class="period-nav-btn" onclick="shiftMyPeriod(-1)">›</button>
       </div>
       <div id="my-history-list"></div>
     </div>
@@ -801,6 +801,22 @@
 // ══════════════════════════════════════════
 // CONFIG & STORAGE
 // ══════════════════════════════════════════
+// localStorage 安全包裝（Safari 無痕模式會 throw）
+const _lsAvailable = (function() {
+  try {
+    const t = '__test__';
+    window.localStorage.setItem(t, t);
+    window.localStorage.removeItem(t);
+    return true;
+  } catch(e) { return false; }
+})();
+const _memStore = {};
+const localStorage = _lsAvailable ? window.localStorage : {
+  getItem: function(k) { return (k in _memStore) ? _memStore[k] : null; },
+  setItem: function(k, v) { _memStore[k] = String(v); },
+  removeItem: function(k) { delete _memStore[k]; }
+};
+
 const STORAGE_KEY = 'hope_classes_';
 const ADMIN_PW_KEY = 'hope_classes_admin_pw';
 const GAS_KEY = 'hope_classes_gas';
@@ -1016,13 +1032,15 @@ function updatePeriodDisplay() {
 // ══════════════════════════════════════════
 // TAB SWITCHING
 // ══════════════════════════════════════════
-function switchTab(id) {
+function switchTab(id, evt) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + id).classList.add('active');
 
   const nav = document.querySelectorAll('.nav-tab');
   nav.forEach(t => t.classList.remove('active'));
-  event.target.classList.add('active');
+  // 用傳入的 event 或 window.event，找到被點的 tab 標記 active
+  const target = (evt && evt.target) || (window.event && window.event.target);
+  if (target && target.classList) target.classList.add('active');
 
   if (id === 'overview')    loadOverview();
   if (id === 'detail')      loadDetailCoachList();
@@ -1036,13 +1054,15 @@ function switchTab(id) {
 // COACH APP
 // ══════════════════════════════════════════
 function initCoachApp() {
-  // Set default week dates (Mon-Sun of current week)
+  // 本週起訖（強制用本地時間，清除舊值再設新值）
   const today = new Date();
-  const dow = today.getDay() || 7;
-  const mon = new Date(today); mon.setDate(today.getDate() - dow + 1);
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-  document.getElementById('week-start').value = fmtDate(mon);
-  document.getElementById('week-end').value   = fmtDate(sun);
+  const dow = today.getDay() || 7; // 1=Mon...7=Sun
+  const mon = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dow + 1);
+  const sun = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dow + 7);
+  const wsEl = document.getElementById('week-start');
+  const weEl = document.getElementById('week-end');
+  wsEl.value = ''; wsEl.value = fmtDate(mon);
+  weEl.value = ''; weEl.value = fmtDate(sun);
 
   // Clear rows, then pre-fill with fixed classes for this coach
   document.getElementById('class-rows').innerHTML = '';
@@ -1056,11 +1076,14 @@ function initCoachApp() {
   // Load period periods for selector
   const sel = document.getElementById('my-period-sel');
   sel.innerHTML = '';
+  // 最新期別在前，舊的在後
   getPeriodKeys(12).reverse().forEach(k => {
     const o = document.createElement('option');
     o.value = k; o.textContent = periodLabel(k);
     sel.appendChild(o);
   });
+  // 預設選本期
+  sel.value = currentPeriodKey();
 
   loadCoachPeriodSummary();
 }
@@ -1178,7 +1201,7 @@ async function submitReport() {
 
   const note = document.getElementById('note').value.trim();
   const ts = new Date().toISOString();
-  const periodKey = getPeriodKey(new Date(weekStart));
+  const periodKey = getPeriodKey(parseLocalDate(weekStart));
 
   const payload = {
     type: 'class_report',
@@ -2481,6 +2504,13 @@ function fmtDate(d) {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   return y + '-' + m + '-' + dd;
+}
+
+// 把 "YYYY-MM-DD" 字串解析成本地時間 Date（避免 Safari 當 UTC 導致日期偏移）
+function parseLocalDate(str) {
+  if (!str) return new Date();
+  const parts = str.split('-').map(Number);
+  return new Date(parts[0], (parts[1] || 1) - 1, parts[2] || 1);
 }
 
 function showToast(msg, duration = 2500) {
