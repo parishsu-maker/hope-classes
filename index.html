@@ -1001,7 +1001,7 @@ function initCoachApp() {
   document.getElementById('class-rows').innerHTML = '';
   const fixed = fixedClasses[currentCoach] || [];
   if (fixed.length > 0) {
-    fixed.forEach(fc => addClassRow(fc.name, ''));   // pre-select name, leave count blank
+    fixed.forEach(fc => addFixedRow(fc.name, fc.count || ''));
   } else {
     addClassRow();  // one blank row if no fixed classes set
   }
@@ -1016,6 +1016,40 @@ function initCoachApp() {
   });
 
   loadCoachPeriodSummary();
+}
+
+function addFixedRow(name, count = '') {
+  const container = document.getElementById('class-rows');
+  const row = document.createElement('div');
+  row.className = 'class-row';
+  row.dataset.fixed = 'true';
+
+  // 課程名稱：純文字標籤（不可修改）
+  const nameWrap = document.createElement('div');
+  nameWrap.className = 'class-name';
+  nameWrap.style.cssText = 'display:flex;align-items:center;gap:6px';
+  nameWrap.innerHTML = `
+    <span style="font-size:11px;color:var(--green-soft);flex:none">📌</span>
+    <span class="fixed-name-label" style="font-size:14px;color:var(--text-main);flex:1;padding:9px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</span>
+    <input type="hidden" class="fixed-name-val" value="${name}">
+  `;
+
+  const countWrap = document.createElement('div');
+  countWrap.className = 'class-count';
+  const countInput = document.createElement('input');
+  countInput.type = 'number'; countInput.min = '0'; countInput.placeholder = '堂';
+  countInput.value = count;
+  countInput.oninput = updateWeekTotal;
+  countWrap.appendChild(countInput);
+
+  // 固定課程不顯示刪除按鈕（保持表單整潔）
+  const placeholder = document.createElement('div');
+  placeholder.style.cssText = 'width:32px;flex:none';
+
+  row.appendChild(nameWrap);
+  row.appendChild(countWrap);
+  row.appendChild(placeholder);
+  container.appendChild(row);
 }
 
 function addClassRow(name = '', count = '') {
@@ -1076,11 +1110,19 @@ async function submitReport() {
   const classes = [];
   const rows = document.querySelectorAll('#class-rows .class-row');
   rows.forEach(row => {
-    const nameEl = row.querySelector('.class-name select, .class-name input');
+    let name = '';
     const countEl = row.querySelector('.class-count input');
-    const name = nameEl ? nameEl.value.trim() : '';
     const count = parseInt(countEl ? countEl.value : 0) || 0;
-    if (name && name !== '__custom__' && count > 0) {
+    if (row.dataset.fixed === 'true') {
+      // 固定課程：從 hidden input 取名稱
+      const hiddenEl = row.querySelector('.fixed-name-val');
+      name = hiddenEl ? hiddenEl.value.trim() : '';
+    } else {
+      // 一般課程：從 select 取名稱
+      const nameEl = row.querySelector('.class-name select');
+      name = nameEl ? nameEl.value.trim() : '';
+    }
+    if (name && count > 0) {
       classes.push({ name, count });
     }
   });
