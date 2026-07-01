@@ -780,7 +780,7 @@ const DEFAULT_COURSE_TYPES = ['個人課','半私課（2人）','小團課（3-5
 
 let currentRole = null; // 'coach' | 'admin'
 let currentCoach = null;
-let gasUrl = localStorage.getItem(GAS_KEY) || '';
+let gasUrl = localStorage.getItem(GAS_KEY) || 'https://script.google.com/macros/s/AKfycbwgPGSLd_C3Zg-sdkwofaHpe35i90gyoAOq_9UGlhFUxiS7-5EuXXjesx82KLkX59FxWQ/exec';
 let coaches = JSON.parse(localStorage.getItem(COACHES_KEY) || 'null') || DEFAULT_COACHES;
 let courseTypes = JSON.parse(localStorage.getItem(COURSE_TYPES_KEY) || 'null') || [...DEFAULT_COURSE_TYPES];
 let benchmarks = JSON.parse(localStorage.getItem(BENCH_KEY) || '{}');
