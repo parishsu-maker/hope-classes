@@ -269,6 +269,18 @@
     font-size: 12px;
     letter-spacing: 0.3px;
   }
+  .summary-table th:first-child,
+  .summary-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+  }
+  .summary-table td:first-child {
+    background: var(--cream);
+  }
+  .summary-table th:first-child {
+    background: var(--green-dark);
+  }
   .summary-table td {
     padding: 9px 10px;
     border-bottom: 1px solid var(--sand);
@@ -1582,7 +1594,8 @@ async function renderChart() {
   }
 
   const choice = sel.value;
-  const allKeys = getPeriodKeys(12);
+  const allKeys = getPeriodKeys(12);          // 舊→新，給圖表用（時間軸）
+  const tableKeys = allKeys.slice().reverse(); // 新→舊，給統計表用（最新在左）
   const labels = allKeys.map(k => {
     const [y, m] = k.split('-').map(Number);
     return `${y}/${m}`;
@@ -1606,10 +1619,13 @@ async function renderChart() {
     const tbody = document.getElementById('history-tbody');
 
     if (choice === '__all__') {
-      headRow.innerHTML = '<th>教練</th>' + allKeys.map(k => {
-        const [y,m]=k.split('-').map(Number);
-        return `<th style="text-align:right">${y}/${m}</th>`;
-      }).join('');
+      headRow.innerHTML = '<th style="text-align:left">教練</th>' +
+        '<th style="text-align:right;background:#0f2419;color:var(--gold-light)">合計</th>' +
+        tableKeys.map(k => {
+          const [y,m]=k.split('-').map(Number);
+          const isCurrent = (k === currentPeriodKey());
+          return `<th style="text-align:right${isCurrent ? ';background:#1a4d33' : ''}">${y}/${m}${isCurrent ? ' ●' : ''}</th>`;
+        }).join('');
 
       const perCoach = await Promise.all(coaches.map(async name => {
         const totals = await Promise.all(allKeys.map(async k => {
@@ -1619,38 +1635,31 @@ async function renderChart() {
         return { name, totals };
       }));
 
-      // Per-coach rows
-      tbody.innerHTML = perCoach.map(({name, totals}) =>
-        `<tr><td style="white-space:nowrap;font-weight:600">${name}</td>` +
-        totals.map(t=>`<td style="text-align:right">${t||'—'}</td>`).join('') +
-        '</tr>'
-      ).join('');
-
-      // Add a header column for period totals
-      headRow.innerHTML += '<th style="text-align:right;background:#0f2419">合計</th>';
-
-      // Re-render rows with per-coach grand total appended
+      // 每位教練一列：合計欄在前，期別欄用 tableKeys（新→舊）
       tbody.innerHTML = perCoach.map(({name, totals}) => {
         const coachTotal = totals.reduce((s,t)=>s+t,0);
-        return `<tr><td style="white-space:nowrap;font-weight:600">${name}</td>` +
-          totals.map(t=>`<td style="text-align:right">${t||'—'}</td>`).join('') +
-          `<td style="text-align:right;font-weight:800;color:var(--green-mid)">${coachTotal||'—'}</td>` +
+        // totals 是照 allKeys（舊→新）算的，要反轉成 tableKeys 順序
+        const revTotals = totals.slice().reverse();
+        return `<tr><td style="white-space:nowrap;font-weight:600;text-align:left">${name}</td>` +
+          `<td style="text-align:right;font-weight:800;color:var(--green-mid);background:#f0ede3">${coachTotal||'—'}</td>` +
+          revTotals.map(t=>`<td style="text-align:right">${t||'—'}</td>`).join('') +
           '</tr>';
       }).join('');
 
-      // Sum row at the bottom
+      // 全體合計列：合計在前、期別用 tableKeys 順序（新→舊）
       const periodSums = allKeys.map((_,i) =>
         perCoach.reduce((s, {totals}) => s + (totals[i]||0), 0)
       );
       const grandSum = periodSums.reduce((s,t)=>s+t,0);
+      const revSums = periodSums.slice().reverse();
       const sumRow = document.createElement('tr');
       sumRow.style.cssText = 'background:var(--green-dark);color:#fff;font-weight:800;';
       sumRow.innerHTML =
-        `<td style="padding:9px 10px;font-size:12px;letter-spacing:0.3px">全體合計</td>` +
-        periodSums.map(s =>
+        `<td style="padding:9px 10px;font-size:12px;letter-spacing:0.3px;text-align:left">全體合計</td>` +
+        `<td style="text-align:right;padding:9px 10px;color:var(--gold-light);font-size:15px">${grandSum}</td>` +
+        revSums.map(s =>
           `<td style="text-align:right;padding:9px 10px">${s||'—'}</td>`
-        ).join('') +
-        `<td style="text-align:right;padding:9px 10px;color:var(--gold-light);font-size:15px">${grandSum}</td>`;
+        ).join('');
       tbody.appendChild(sumRow);
     }
 
@@ -1681,92 +1690,109 @@ function drawChart(labels, data, label, coachKey) {
 
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
 
-  // Target/bonus lines
   const bench = coachKey && coachKey !== '__all__' ? (benchmarks[coachKey] || {}) : {};
   const target = bench.target || 0;
   const bonusT = bench.bonus || 0;
 
-  // Simple custom chart using Canvas API
-  const W = canvas.offsetWidth || 600;
-  const H = 220;
-  canvas.width = W;
-  canvas.height = H;
+  // 高解析度：用 devicePixelRatio 讓字更清晰
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.parentElement.offsetWidth || 600;
+  const cssH = 340; // 加高
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  ctx.scale(dpr, dpr);
 
-  const padL = 40, padR = 20, padT = 20, padB = 40;
+  const W = cssW, H = cssH;
+  const padL = 48, padR = 24, padT = 28, padB = 64; // 底部加大放旋轉標籤
   const chartW = W - padL - padR;
   const chartH = H - padT - padB;
-  const maxVal = Math.max(...data, target, bonusT, 1);
-  const step = Math.ceil(maxVal / 5);
+  const maxVal = Math.max.apply(null, data.concat([target, bonusT, 1]));
+  const step = Math.ceil(maxVal / 5 / 10) * 10 || 10; // 刻度取整到 10
   const yMax = step * 6;
 
   ctx.clearRect(0, 0, W, H);
 
-  // Grid
+  // Y 軸格線 + 數字
   ctx.strokeStyle = '#e9e4d8';
   ctx.lineWidth = 1;
-  for (let i = 0; i <= 5; i++) {
+  for (let i = 0; i <= 6; i++) {
     const y = padT + chartH - (i * step / yMax) * chartH;
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
-    ctx.fillStyle = '#888';
-    ctx.font = '10px sans-serif';
+    ctx.fillStyle = '#999';
+    ctx.font = '12px sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(i * step, padL - 4, y + 3);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(i * step, padL - 8, y);
   }
 
-  // Benchmark lines
-  function drawRefLine(val, color, dash, text) {
+  // 達標/獎金參考線
+  function drawRefLine(val, color, text) {
     if (!val) return;
     const y = padT + chartH - (val / yMax) * chartH;
     ctx.save();
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash(dash);
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
     ctx.fillStyle = color;
-    ctx.font = '10px sans-serif';
+    ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(text, padL + 4, y - 3);
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(text, padL + 6, y - 4);
     ctx.restore();
   }
-  drawRefLine(target, '#40916c', [5,3], `達標 ${target}`);
-  drawRefLine(bonusT, '#c9a84c', [5,3], `獎金 ${bonusT}`);
+  drawRefLine(target, '#40916c', '達標 ' + target);
+  drawRefLine(bonusT, '#c9a84c', '獎金 ' + bonusT);
 
   const n = labels.length;
-  const barW = Math.max(6, chartW / n - 8);
+  const slotW = chartW / n;
+  const barW = Math.max(10, Math.min(48, slotW - 14));
 
-  // Bars
   data.forEach((v, i) => {
-    const x = padL + (i + 0.5) / n * chartW - barW / 2;
+    const cx = padL + (i + 0.5) * slotW;
+    const x = cx - barW / 2;
     const barH2 = (v / yMax) * chartH;
     const y = padT + chartH - barH2;
 
     ctx.fillStyle = v >= (bonusT || Infinity) ? '#c9a84c' :
                     v >= (target || Infinity) ? '#40916c' : '#74c69d';
-    ctx.beginPath();
-    const r = 4;
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + barW - r, y);
-    ctx.quadraticCurveTo(x + barW, y, x + barW, y + r);
-    ctx.lineTo(x + barW, padT + chartH);
-    ctx.lineTo(x, padT + chartH);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-    ctx.fill();
-
-    // Value label
     if (v > 0) {
+      const r = 4;
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + barW - r, y);
+      ctx.quadraticCurveTo(x + barW, y, x + barW, y + r);
+      ctx.lineTo(x + barW, padT + chartH);
+      ctx.lineTo(x, padT + chartH);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+      ctx.fill();
+
+      // 數值標籤
       ctx.fillStyle = '#1a3a2a';
-      ctx.font = '10px sans-serif';
+      ctx.font = 'bold 13px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(v, x + barW/2, y - 3);
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(v, cx, y - 5);
     }
 
-    // X label
+    // X 軸標籤：旋轉 45 度避免重疊，只顯示 年/月
+    ctx.save();
+    ctx.translate(cx, padT + chartH + 8);
+    ctx.rotate(-Math.PI / 4);
     ctx.fillStyle = '#6b7c6b';
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(labels[i], x + barW/2, padT + chartH + 14);
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    // labels[i] 形如 "2026-06"，轉成 "6月" 或 "26/6"
+    let lbl = labels[i];
+    const mt = String(lbl).match(/^(\d{4})-(\d{2})$/);
+    if (mt) lbl = (mt[1].slice(2)) + '/' + Number(mt[2]);
+    ctx.fillText(lbl, 0, 0);
+    ctx.restore();
   });
 }
 
