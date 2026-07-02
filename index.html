@@ -541,9 +541,9 @@
 
   <!-- Nav tabs (admin) -->
   <div class="nav-tabs" id="admin-nav" style="display:none">
-    <div class="nav-tab active" onclick="switchTab('overview', event)">📊 總覽</div>
+    <div class="nav-tab active" onclick="switchTab('overview', event)">📊 團隊月總覽</div>
     <div class="nav-tab" onclick="switchTab('detail', event)">👤 教練明細</div>
-    <div class="nav-tab" onclick="switchTab('chart', event)">📈 圖表</div>
+    <div class="nav-tab" onclick="switchTab('chart', event)">📈 趨勢圖表</div>
     <div class="nav-tab" onclick="switchTab('settings', event)">⚙️ 後台設定</div>
     <div class="nav-tab" onclick="switchTab('devsettings', event)">🔧 程式設定</div>
   </div>
@@ -608,9 +608,9 @@
   <!-- ── Admin: Overview ── -->
   <div class="page" id="page-overview">
     <div class="period-nav">
-      <button class="period-nav-btn" onclick="shiftAdminPeriod(-1)">‹</button>
+      <button class="period-nav-btn" onclick="shiftAdminPeriod(1)">‹</button>
       <select id="admin-period-sel" onchange="loadOverview()"></select>
-      <button class="period-nav-btn" onclick="shiftAdminPeriod(1)">›</button>
+      <button class="period-nav-btn" onclick="shiftAdminPeriod(-1)">›</button>
     </div>
 
     <div class="metrics-row" id="overview-metrics">
