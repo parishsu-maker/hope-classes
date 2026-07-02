@@ -656,6 +656,10 @@
           <option value="">— 選擇教練 —</option>
         </select>
       </div>
+      <div class="field-group">
+        <label class="field-label">選擇期別</label>
+        <select id="detail-period-sel" onchange="loadCoachDetail()"></select>
+      </div>
     </div>
     <div id="detail-content"></div>
   </div>
@@ -1003,6 +1007,8 @@ function logout() {
   document.getElementById('coach-select-wrap').style.display = '';
   document.getElementById('admin-login-wrap').style.display = 'none';
   document.getElementById('admin-pw').value = '';
+  const su = document.getElementById('sync-user');
+  if (su) su.textContent = '';
 }
 
 // ══════════════════════════════════════════
@@ -1739,6 +1745,19 @@ function loadDetailCoachList() {
     o.value = n; o.textContent = n;
     sel.appendChild(o);
   });
+  // 期別選單（新→舊，預設本期）
+  const psel = document.getElementById('detail-period-sel');
+  const prev = psel.value;
+  const keys = getPeriodKeys(12).reverse();
+  psel.innerHTML = '';
+  const curKey = currentPeriodKey();
+  keys.forEach(k => {
+    const o = document.createElement('option');
+    o.value = k;
+    o.textContent = periodLabel(k) + (k === curKey ? '（本期）' : '');
+    psel.appendChild(o);
+  });
+  psel.value = keys.includes(prev) ? prev : curKey;
 }
 
 async function loadCoachDetail() {
@@ -1759,7 +1778,9 @@ async function loadCoachDetail() {
       return { key: k, total, records: mine };
     }));
 
-    const current = periodData[periodData.length - 1];
+    const psel = document.getElementById('detail-period-sel');
+    const selKey = (psel && psel.value) ? psel.value : currentPeriodKey();
+    const current = periodData.find(p => p.key === selKey) || periodData[periodData.length - 1];
     const currentTotal = current.total;
     const curBench = getBenchForPeriod(name, current.key);
     const target = curBench.target || 0;
@@ -1772,14 +1793,15 @@ async function loadCoachDetail() {
       else statusHtml = `<span class="pill pill-danger">⏳ 差 ${target - currentTotal} 堂</span>`;
     }
 
+    const isCurrentPeriod = current.key === currentPeriodKey();
     // Build detail HTML
     let html = `
       <div class="card">
-        <div class="card-title">📊 ${name} — 本期</div>
+        <div class="card-title">📊 ${name} — ${periodLabel(current.key)}${isCurrentPeriod ? '（本期）' : ''}</div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div>
             <div style="font-size:36px;font-weight:800;color:var(--green-dark)">${currentTotal}</div>
-            <div style="font-size:12px;color:var(--text-muted)">本期堂數${target > 0 ? ` ／ 達標 ${target} 堂${bonusT ? ` ／ 獎金 ${bonusT} 堂` : ''}` : ''}</div>
+            <div style="font-size:12px;color:var(--text-muted)">該期堂數${target > 0 ? ` ／ 達標 ${target} 堂${bonusT ? ` ／ 獎金 ${bonusT} 堂` : ''}` : ''}</div>
           </div>
           ${statusHtml}
         </div>
@@ -1832,7 +1854,7 @@ async function loadCoachDetail() {
       else if (pt > 0 && p.total >= pt) pill = '<span class="pill pill-ok">✅</span>';
       else if (pt > 0 && p.total > 0) pill = '<span class="pill pill-warn">未達標</span>';
       else if (p.total === 0) pill = '<span class="pill pill-null">—</span>';
-      const benchLabel = pt > 0 ? `<span style="font-size:10px;color:var(--text-muted)">/${pt}${pb2 ? '+'+pb2 : ''}</span>` : '';
+      const benchLabel = pt > 0 ? `<span style="font-size:10px;color:var(--text-muted)">/${pt}${pb2 ? ' 獎'+pb2 : ''}</span>` : '';
       html += `<tr>
         <td style="font-size:12px">${periodLabel(p.key)}</td>
         <td style="text-align:right;font-weight:700">${p.total} ${benchLabel}</td>
