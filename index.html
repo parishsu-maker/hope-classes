@@ -269,6 +269,11 @@
     font-size: 12px;
     letter-spacing: 0.3px;
   }
+  .class-name.is-custom {
+    background: #fff8e6;
+    border-radius: 8px;
+    padding: 4px;
+  }
   .summary-table th:first-child,
   .summary-table td:first-child {
     position: sticky;
@@ -725,7 +730,8 @@
     <div class="card">
       <div class="card-title">📚 課程項目管理</div>
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">教練填報時只能選擇以下項目，無法自行輸入</p>
-      <div id="course-type-list"></div>
+      <div id="pending-custom-courses"></div>
+        <div id="course-type-list"></div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <input type="text" id="new-course-type" placeholder="新課程項目名稱" style="flex:1">
         <button class="btn btn-primary btn-sm" onclick="addCourseType()">＋ 新增</button>
@@ -807,6 +813,36 @@
   </div>
 
 </div><!-- /main-app -->
+
+<!-- 編輯回報彈窗 -->
+<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px">
+  <div style="background:#fff;border-radius:16px;max-width:440px;width:100%;padding:22px;box-shadow:0 12px 40px rgba(0,0,0,0.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="font-size:17px;font-weight:700;color:var(--green-mid)">✏️ 編輯回報</h3>
+      <button onclick="closeEditReport()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999">×</button>
+    </div>
+    <div id="edit-coach-label" style="font-size:13px;color:var(--text-muted);margin-bottom:12px"></div>
+
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">回報週次</label>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+      <input type="date" id="edit-week-start" style="flex:1;padding:8px;border:1px solid var(--sand);border-radius:8px">
+      <span style="color:var(--text-muted)">至</span>
+      <input type="date" id="edit-week-end" style="flex:1;padding:8px;border:1px solid var(--sand);border-radius:8px">
+    </div>
+
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">課程項目與堂數</label>
+    <div id="edit-class-rows" style="margin-bottom:8px"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addEditClassRow()" style="margin-bottom:14px">＋ 新增課程項目</button>
+
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">備註</label>
+    <textarea id="edit-note" style="width:100%;padding:8px;border:1px solid var(--sand);border-radius:8px;margin-bottom:16px" rows="2"></textarea>
+
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1" onclick="saveEditReport()">💾 儲存修改</button>
+      <button class="btn" style="flex:none;background:#fdeaea;color:var(--alert);border:1px solid #f5c6c6" onclick="deleteEditReport()">🗑️ 刪除</button>
+    </div>
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -974,9 +1010,7 @@ async function initApp() {
   document.getElementById('btn-logout').style.display = '';
   updatePeriodDisplay();
 
-  // 先同步 GAS（最多等 5 秒），確保教練名單、課程項目都是最新的
-  await syncSettingsFromGas();
-
+  // 秒開：先用本機快取立即顯示畫面
   if (currentRole === 'coach') {
     document.getElementById('coach-nav').style.display = 'flex';
     document.getElementById('admin-nav').style.display = 'none';
@@ -986,6 +1020,22 @@ async function initApp() {
     document.getElementById('admin-nav').style.display = 'flex';
     initAdminApp();
   }
+
+  // 背景同步 GAS，同步完成後若設定有變才重新渲染
+  syncSettingsFromGas().then(updated => {
+    if (!updated) return;
+    if (currentRole === 'coach') {
+      initCoachApp();
+    } else {
+      // 重新載入目前顯示中的管理員分頁
+      const activePage = document.querySelector('.page.active');
+      const pageId = activePage ? activePage.id : '';
+      if (pageId === 'page-overview')      loadOverview();
+      else if (pageId === 'page-detail')   { loadDetailCoachList(); loadCoachDetail(); }
+      else if (pageId === 'page-chart')    renderChart();
+      else if (pageId === 'page-settings') initSettings();
+    }
+  });
 }
 
 async function syncSettingsFromGas() {
@@ -1135,6 +1185,7 @@ function addFixedRow(name, count = '') {
   container.appendChild(row);
 }
 
+var CUSTOM_OPT = '__custom__';
 function addClassRow(name = '', count = '') {
   const container = document.getElementById('class-rows');
   const row = document.createElement('div');
@@ -1145,15 +1196,50 @@ function addClassRow(name = '', count = '') {
 
   const nameInput = document.createElement('select');
   nameInput.style.width = '100%';
-  // Use admin-configured courseTypes only (no custom input)
   courseTypes.forEach(t => {
     const o = document.createElement('option');
     o.value = t; o.textContent = t;
     nameInput.appendChild(o);
   });
-  if (name) nameInput.value = name;
-  nameInput.onchange = updateWeekTotal;
+  // 選單最後加「其他：自行填寫」
+  const customOpt = document.createElement('option');
+  customOpt.value = CUSTOM_OPT;
+  customOpt.textContent = '➕ 其他：自行填寫';
+  nameInput.appendChild(customOpt);
+
+  // 自訂輸入框（預設隱藏）
+  const customInput = document.createElement('input');
+  customInput.type = 'text';
+  customInput.placeholder = '輸入課程名稱';
+  customInput.className = 'custom-course-input';
+  customInput.style.cssText = 'width:100%;margin-top:6px;display:none;background:#fff8e6;border:1.5px solid #e6c34c;border-radius:8px;padding:8px 10px';
+  customInput.oninput = updateWeekTotal;
+
+  // 判斷傳入的 name 是不是既有課程；不是的話當自訂
+  const isKnown = !name || courseTypes.indexOf(name) !== -1;
+  if (name && isKnown) {
+    nameInput.value = name;
+  } else if (name && !isKnown) {
+    nameInput.value = CUSTOM_OPT;
+    customInput.value = name;
+    customInput.style.display = '';
+    nameWrap.classList.add('is-custom');
+  }
+
+  nameInput.onchange = function() {
+    if (nameInput.value === CUSTOM_OPT) {
+      customInput.style.display = '';
+      nameWrap.classList.add('is-custom');
+      customInput.focus();
+    } else {
+      customInput.style.display = 'none';
+      nameWrap.classList.remove('is-custom');
+    }
+    updateWeekTotal();
+  };
+
   nameWrap.appendChild(nameInput);
+  nameWrap.appendChild(customInput);
 
   const countWrap = document.createElement('div');
   countWrap.className = 'class-count';
@@ -1203,10 +1289,21 @@ async function submitReport() {
     } else {
       // 一般課程：從 select 取名稱
       const nameEl = row.querySelector('.class-name select');
-      name = nameEl ? nameEl.value.trim() : '';
+      const selVal = nameEl ? nameEl.value : '';
+      if (selVal === CUSTOM_OPT) {
+        // 自訂課程：從文字框取名稱，標記 isCustom
+        const customEl = row.querySelector('.custom-course-input');
+        name = customEl ? customEl.value.trim() : '';
+        if (name && count > 0) {
+          classes.push({ name: name, count: count, isCustom: true });
+        }
+        return;
+      } else {
+        name = selVal.trim();
+      }
     }
     if (name && count > 0) {
-      classes.push({ name, count });
+      classes.push({ name: name, count: count });
     }
   });
 
@@ -1382,6 +1479,164 @@ async function _findMyDataInOtherPeriods(currentKey) {
   }
 }
 
+var _editableRecords = {};
+var _editingTs = null;
+
+function openEditReport(ts) {
+  const r = _editableRecords[ts];
+  if (!r) { showToast('找不到該筆紀錄'); return; }
+  _editingTs = ts;
+  document.getElementById('edit-coach-label').textContent = r.coach + '　送出於 ' + (String(r.ts).slice(0,10));
+  document.getElementById('edit-week-start').value = normDateInput(r.weekStart);
+  document.getElementById('edit-week-end').value = normDateInput(r.weekEnd);
+  document.getElementById('edit-note').value = r.note || '';
+  // 建立課程列
+  const box = document.getElementById('edit-class-rows');
+  box.innerHTML = '';
+  (r.classes || []).forEach(c => addEditClassRow(c.name, c.count, c.isCustom));
+  if (!r.classes || r.classes.length === 0) addEditClassRow();
+  document.getElementById('edit-modal').style.display = 'flex';
+}
+
+// 把各種日期格式轉成 input[type=date] 需要的 YYYY-MM-DD
+function normDateInput(v) {
+  if (!v) return '';
+  const s = String(v);
+  const mt = s.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (mt) return mt[1] + '-' + String(mt[2]).padStart(2,'0') + '-' + String(mt[3]).padStart(2,'0');
+  return s.slice(0, 10);
+}
+
+function addEditClassRow(name = '', count = '', isCustom = false) {
+  const box = document.getElementById('edit-class-rows');
+  const row = document.createElement('div');
+  row.className = 'edit-class-row';
+  row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;align-items:center';
+
+  const sel = document.createElement('select');
+  sel.style.cssText = 'flex:1;padding:7px;border:1px solid var(--sand);border-radius:8px';
+  courseTypes.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t; o.textContent = t;
+    sel.appendChild(o);
+  });
+  const customOpt = document.createElement('option');
+  customOpt.value = CUSTOM_OPT;
+  customOpt.textContent = '➕ 其他：自行填寫';
+  sel.appendChild(customOpt);
+
+  const customInput = document.createElement('input');
+  customInput.type = 'text';
+  customInput.placeholder = '課程名稱';
+  customInput.className = 'edit-custom-input';
+  customInput.style.cssText = 'flex:1;padding:7px;border:1.5px solid #e6c34c;border-radius:8px;background:#fff8e6;display:none';
+
+  const known = name && courseTypes.indexOf(name) !== -1;
+  if (name && known) {
+    sel.value = name;
+  } else if (name && !known) {
+    sel.value = CUSTOM_OPT;
+    customInput.value = name;
+    customInput.style.display = '';
+  }
+
+  sel.onchange = function() {
+    customInput.style.display = (sel.value === CUSTOM_OPT) ? '' : 'none';
+  };
+
+  const cnt = document.createElement('input');
+  cnt.type = 'number'; cnt.min = '0'; cnt.placeholder = '堂';
+  cnt.value = count;
+  cnt.style.cssText = 'width:64px;padding:7px;border:1px solid var(--sand);border-radius:8px';
+
+  const del = document.createElement('button');
+  del.textContent = '×';
+  del.style.cssText = 'background:#fdeaea;color:var(--alert);border:none;border-radius:8px;width:32px;height:32px;cursor:pointer';
+  del.onclick = function() { box.removeChild(row); };
+
+  row.appendChild(sel);
+  row.appendChild(customInput);
+  row.appendChild(cnt);
+  row.appendChild(del);
+  box.appendChild(row);
+}
+
+function closeEditReport() {
+  document.getElementById('edit-modal').style.display = 'none';
+  _editingTs = null;
+}
+
+async function saveEditReport() {
+  const r = _editableRecords[_editingTs];
+  if (!r) { showToast('找不到紀錄'); return; }
+  const weekStart = document.getElementById('edit-week-start').value;
+  const weekEnd = document.getElementById('edit-week-end').value;
+  if (!weekStart || !weekEnd) { showToast('請填寫週次'); return; }
+
+  const classes = [];
+  document.querySelectorAll('#edit-class-rows .edit-class-row').forEach(row => {
+    const sel = row.querySelector('select');
+    const cntEl = row.querySelector('input[type="number"]');
+    const count = parseInt(cntEl ? cntEl.value : 0) || 0;
+    let name = '', isCustom = false;
+    if (sel.value === CUSTOM_OPT) {
+      const ci = row.querySelector('.edit-custom-input');
+      name = ci ? ci.value.trim() : '';
+      isCustom = true;
+    } else {
+      name = sel.value.trim();
+    }
+    if (name && count > 0) {
+      const item = { name: name, count: count };
+      if (isCustom) item.isCustom = true;
+      classes.push(item);
+    }
+  });
+
+  if (classes.length === 0) { showToast('請至少填一項課程'); return; }
+
+  const note = document.getElementById('edit-note').value.trim();
+  const periodKey = getPeriodKey(parseLocalDate(weekStart));
+  const payload = {
+    type: 'update_report',
+    ts: r.ts,
+    weekStart: weekStart, weekEnd: weekEnd,
+    classes: classes, note: note, periodKey: periodKey
+  };
+
+  showToast('⏳ 儲存中…');
+  try {
+    await fetch(gasUrl, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+    // 清快取讓明細重抓
+    invalidateCache(r.periodKey);
+    invalidateCache(periodKey);
+    showToast('✅ 已更新回報');
+    closeEditReport();
+    loadCoachDetail();
+  } catch(e) {
+    showToast('❌ 更新失敗：' + e.message);
+  }
+}
+
+async function deleteEditReport() {
+  const r = _editableRecords[_editingTs];
+  if (!r) return;
+  if (!confirm('確定要刪除這筆回報嗎？此動作無法復原。')) return;
+  showToast('⏳ 刪除中…');
+  try {
+    await fetch(gasUrl, {
+      method: 'POST', mode: 'no-cors',
+      body: JSON.stringify({ type: 'delete_report', ts: r.ts })
+    });
+    invalidateCache(r.periodKey);
+    showToast('✅ 已刪除回報');
+    closeEditReport();
+    loadCoachDetail();
+  } catch(e) {
+    showToast('❌ 刪除失敗：' + e.message);
+  }
+}
+
 function shiftMyPeriod(delta) {
   const sel = document.getElementById('my-period-sel');
   const keys = Array.from(sel.options).map(o => o.value);
@@ -1531,15 +1786,23 @@ async function loadCoachDetail() {
       html += `<div style="border-top:1px solid var(--sand);padding-top:10px">`;
       sorted.forEach(r => {
         const wt = (r.classes||[]).reduce((s,c)=>s+c.count,0);
+        const rid = String(r.ts).replace(/'/g, '');
         html += `
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--sand)">
-            <div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--sand)">
+            <div style="flex:1">
               <div style="font-size:12px;color:var(--text-muted)">${r.weekStart} – ${r.weekEnd}</div>
-              <div style="font-size:12px;margin-top:2px">${(r.classes||[]).map(c=>`${c.name}×${c.count}`).join('、')}</div>
+              <div style="font-size:12px;margin-top:2px">${(r.classes||[]).map(c=> c.isCustom ? `<span style="background:#fff8e6;border:1px solid #e6c34c;border-radius:4px;padding:1px 5px">${c.name}×${c.count} ⚠</span>` : `${c.name}×${c.count}`).join('、')}</div>
+              ${r.note ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">備註：${r.note}</div>` : ''}
             </div>
-            <div style="font-weight:700;color:var(--green-mid)">${wt}堂</div>
+            <div style="text-align:right;white-space:nowrap">
+              <div style="font-weight:700;color:var(--green-mid);margin-bottom:4px">${wt}堂</div>
+              <button class="btn btn-ghost btn-sm" onclick="openEditReport('${rid}')">✏️ 編輯</button>
+            </div>
           </div>`;
       });
+      // 暫存這位教練的紀錄供編輯用
+      _editableRecords = {};
+      sorted.forEach(r => { _editableRecords[String(r.ts)] = r; });
       html += `</div>`;
     }
     html += `</div>`;
@@ -1846,6 +2109,52 @@ function renderCourseTypeMgmt() {
       <button class="btn btn-ghost btn-sm" style="color:var(--alert)" onclick="removeCourseType(${i})">移除</button>
     </div>`
   ).join('');
+  scanPendingCustomCourses();
+}
+
+// 掃描最近回報，找出教練自訂但尚未加入選單的課程
+async function scanPendingCustomCourses() {
+  const box = document.getElementById('pending-custom-courses');
+  if (!box) return;
+  const keys = getPeriodKeys(6);
+  const found = {};
+  await Promise.all(keys.map(async k => {
+    try {
+      const data = await fetchReports(k);
+      data.forEach(r => {
+        (r.classes || []).forEach(c => {
+          if (c.isCustom && c.name && courseTypes.indexOf(c.name) === -1) {
+            if (!found[c.name]) found[c.name] = [];
+            if (found[c.name].indexOf(r.coach) === -1) found[c.name].push(r.coach);
+          }
+        });
+      });
+    } catch(e) {}
+  }));
+  const names = Object.keys(found);
+  if (names.length === 0) {
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = '<div style="background:#fff8e6;border:1.5px solid #e6c34c;border-radius:10px;padding:12px;margin-bottom:14px">' +
+    '<p style="font-weight:700;color:#8a6d1a;margin-bottom:8px">⚠ 教練自訂了這些課程，尚未加入選單：</p>' +
+    names.map(n =>
+      `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">
+        <span style="flex:1;font-size:14px">${n} <span style="color:var(--text-muted);font-size:12px">（${found[n].join('、')}）</span></span>
+        <button class="btn btn-primary btn-sm" onclick="addCustomToList('${n.replace(/'/g, "\\'")}')">加入選單</button>
+      </div>`
+    ).join('') +
+    '</div>';
+}
+
+// 把自訂課程一鍵加入正式選單
+function addCustomToList(name) {
+  if (courseTypes.indexOf(name) === -1) {
+    courseTypes.push(name);
+    saveCourseTypes();
+    renderCourseTypeMgmt();
+    showToast('✅ 已加入「' + name + '」');
+  }
 }
 
 function addCourseType() {
@@ -2612,12 +2921,17 @@ function showSyncStatus(success = true, label = '') {
 // ══════════════════════════════════════════
 // INIT ON LOAD
 // ══════════════════════════════════════════
-window.addEventListener('DOMContentLoaded', async () => {
-  // 頁面載入時先從 GAS 同步教練名單，讓選單顯示最新資料
-  await syncSettingsFromGas();
+window.addEventListener('DOMContentLoaded', () => {
+  // 提前喚醒 GAS（避免冷啟動延遲），不等回應
+  if (gasUrl) { fetch(gasUrl + '?type=ping', { mode: 'no-cors' }).catch(() => {}); }
+  // 秒開：先用本機快取顯示登入畫面
   buildCoachSelect();
   updatePeriodDisplay();
   showCoachLogin();
+  // 背景同步 GAS，完成後若教練名單有變就重建選單
+  syncSettingsFromGas().then(updated => {
+    if (updated) buildCoachSelect();
+  });
 });
 </script>
 </body>
