@@ -1009,6 +1009,8 @@ function logout() {
   document.getElementById('admin-pw').value = '';
   const su = document.getElementById('sync-user');
   if (su) su.textContent = '';
+  const bar = document.getElementById('sync-status');
+  if (bar) bar.style.display = 'none';
 }
 
 // ══════════════════════════════════════════
