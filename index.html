@@ -484,7 +484,7 @@
       <div class="header-sub">元木運動行銷</div>
     </div>
   </div>
-  <button id="btn-logout" onclick="logout()">登出</button>
+  <button id="btn-logout" onclick="logout()" style="display:none">登出</button>
 </header>
 
 <div class="period-badge" id="period-display">載入中…</div>
@@ -967,6 +967,7 @@ function showCoachLogin() {
   document.getElementById('coach-select-wrap').style.display = '';
   document.getElementById('admin-login-wrap').style.display = 'none';
   document.getElementById('main-app').style.display = 'none';
+  document.getElementById('btn-logout').style.display = 'none';
 }
 
 function showAdminLogin() {
