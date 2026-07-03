@@ -514,6 +514,10 @@
       <option value="">— 請選擇 —</option>
     </select>
   </div>
+  <div class="field-group">
+    <label class="field-label">密碼</label>
+    <input type="password" id="coach-pw" placeholder="請輸入密碼" onkeydown="if(event.key==='Enter')enterCoach()" autocomplete="current-password">
+  </div>
   <button class="btn btn-primary" style="width:100%;margin-bottom:20px" onclick="enterCoach()">進入教練頁面 →</button>
 
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
@@ -549,6 +553,7 @@
   <div class="nav-tabs" id="coach-nav">
     <div class="nav-tab active" onclick="switchTab('report', event)">📝 填寫課程</div>
     <div class="nav-tab" onclick="switchTab('myhistory', event)">📋 我的紀錄</div>
+    <div class="nav-tab" onclick="switchTab('mytrend', event)">📈 我的趨勢</div>
   </div>
 
   <!-- Nav tabs (admin) -->
@@ -614,6 +619,17 @@
       </div>
       <div id="my-data-hint" style="margin-bottom:12px"></div>
       <div id="my-history-list"></div>
+    </div>
+  </div>
+
+  <!-- ── Coach: My Trend ── -->
+  <div class="page" id="page-mytrend">
+    <div class="card">
+      <div class="card-title">📈 我的堂數歷史趨勢</div>
+      <div class="chart-wrap">
+        <canvas id="my-chart" height="220"></canvas>
+      </div>
+      <div id="my-trend-note" style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.5"></div>
     </div>
   </div>
 
@@ -808,6 +824,13 @@
     </div>
 
     <div class="card">
+      <div class="card-title">🔑 各教練登入密碼</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">每位教練有自己的密碼。修改後請只通知該教練本人。點眼睛圖示可切換顯示/隱藏。</p>
+      <div id="coach-pws-list"></div>
+      <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="saveAllCoachPws()">💾 儲存所有密碼</button>
+    </div>
+
+    <div class="card">
       <div class="card-title">📋 GAS 程式碼參考</div>
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">將以下程式碼貼入 Google Apps Script，部署為「網路應用程式」（任何人皆可存取）</p>
       <div style="position:relative">
@@ -874,6 +897,7 @@ const localStorage = _lsAvailable ? window.localStorage : {
 
 const STORAGE_KEY = 'hope_classes_';
 const ADMIN_PW_KEY = 'hope_classes_admin_pw';
+const COACH_PWS_KEY = 'hope_classes_coach_pws';
 const GAS_KEY = 'hope_classes_gas';
 const COACHES_KEY = 'hope_classes_coaches';
 const BENCH_KEY = 'hope_classes_bench';
@@ -906,6 +930,8 @@ var benchHistory   = JSON.parse(localStorage.getItem(BENCH_HISTORY_KEY) || '{}')
 // fixedClasses: { coachName: [{name, count}] }
 var fixedClasses   = JSON.parse(localStorage.getItem(FIXED_CLASSES_KEY) || '{}');
 var adminPw = localStorage.getItem(ADMIN_PW_KEY) || 'carolhope2026';
+// coachPws: { "教練名": "密碼" }，每位教練各自一組密碼
+var coachPws = JSON.parse(localStorage.getItem(COACH_PWS_KEY) || '{}');
 var allData = []; // fetched from GAS
 var chartInstance = null;
 
@@ -984,8 +1010,14 @@ function showAdminLogin() {
 function enterCoach() {
   const name = document.getElementById('coach-select').value;
   if (!name) { showToast('請先選擇教練姓名'); return; }
+  const pwEl = document.getElementById('coach-pw');
+  const pw = pwEl ? pwEl.value : '';
+  const expectedPw = coachPws[name] || '';
+  if (!expectedPw) { showToast('此教練尚未設定密碼，請聯絡管理員'); return; }
+  if (pw !== expectedPw) { showToast('密碼錯誤'); return; }
   currentRole = 'coach';
   currentCoach = name;
+  if (pwEl) pwEl.value = '';
   initApp();
 }
 
@@ -1085,6 +1117,12 @@ async function syncSettingsFromGas() {
       localStorage.setItem(BENCH_HISTORY_KEY, JSON.stringify(benchHistory));
       if (JSON.stringify(benchHistory) !== prev) updated = true;
     }
+    if (Object.prototype.hasOwnProperty.call(d, 'coachPws') && Object.keys(d.coachPws).length > 0) {
+      const prev = JSON.stringify(coachPws);
+      coachPws = d.coachPws;
+      localStorage.setItem(COACH_PWS_KEY, JSON.stringify(coachPws));
+      if (JSON.stringify(coachPws) !== prev) updated = true;
+    }
     showSyncStatus(true);
     return updated;
   } catch(e) {
@@ -1118,6 +1156,7 @@ function switchTab(id, evt) {
   if (id === 'settings')    initSettings();
   if (id === 'devsettings') initDevSettings();
   if (id === 'myhistory')   loadMyHistory();
+  if (id === 'mytrend')     renderMyTrend();
 }
 
 // ══════════════════════════════════════════
@@ -1190,7 +1229,7 @@ function addFixedRow(name, count = '') {
   const countWrap = document.createElement('div');
   countWrap.className = 'class-count';
   const countInput = document.createElement('input');
-  countInput.type = 'number'; countInput.min = '0'; countInput.placeholder = '堂';
+  countInput.type = 'number'; countInput.min = '0'; countInput.step = '0.5'; countInput.placeholder = '堂';
   countInput.value = count;
   countInput.oninput = updateWeekTotal;
   countWrap.appendChild(countInput);
@@ -1264,7 +1303,7 @@ function addClassRow(name = '', count = '') {
   const countWrap = document.createElement('div');
   countWrap.className = 'class-count';
   const countInput = document.createElement('input');
-  countInput.type = 'number'; countInput.min = '0'; countInput.placeholder = '堂';
+  countInput.type = 'number'; countInput.min = '0'; countInput.step = '0.5'; countInput.placeholder = '堂';
   countInput.value = count;
   countInput.oninput = updateWeekTotal;
   countWrap.appendChild(countInput);
@@ -1286,8 +1325,10 @@ function addClassRow(name = '', count = '') {
 function updateWeekTotal() {
   let total = 0;
   document.querySelectorAll('#class-rows .class-count input').forEach(inp => {
-    total += parseInt(inp.value) || 0;
+    total += parseFloat(inp.value) || 0;
   });
+  // 防浮點誤差：四捨五入到 1 位小數
+  total = Math.round(total * 10) / 10;
   document.getElementById('week-total').textContent = total;
 }
 
@@ -1301,7 +1342,7 @@ async function submitReport() {
   rows.forEach(row => {
     let name = '';
     const countEl = row.querySelector('.class-count input');
-    const count = parseInt(countEl ? countEl.value : 0) || 0;
+    const count = parseFloat(countEl ? countEl.value : 0) || 0;
     if (row.dataset.fixed === 'true') {
       // 固定課程：從 hidden input 取名稱
       const hiddenEl = row.querySelector('.fixed-name-val');
@@ -1567,7 +1608,7 @@ function addEditClassRow(name = '', count = '', isCustom = false) {
   };
 
   const cnt = document.createElement('input');
-  cnt.type = 'number'; cnt.min = '0'; cnt.placeholder = '堂';
+  cnt.type = 'number'; cnt.min = '0'; cnt.step = '0.5'; cnt.placeholder = '堂';
   cnt.value = count;
   cnt.style.cssText = 'width:64px;padding:7px;border:1px solid var(--sand);border-radius:8px';
 
@@ -1599,7 +1640,7 @@ async function saveEditReport() {
   document.querySelectorAll('#edit-class-rows .edit-class-row').forEach(row => {
     const sel = row.querySelector('select');
     const cntEl = row.querySelector('input[type="number"]');
-    const count = parseInt(cntEl ? cntEl.value : 0) || 0;
+    const count = parseFloat(cntEl ? cntEl.value : 0) || 0;
     let name = '', isCustom = false;
     if (sel.value === CUSTOM_OPT) {
       const ci = row.querySelector('.edit-custom-input');
@@ -1998,8 +2039,39 @@ function initExportPeriodSelectors(allKeys) {
   toSel.value = allKeys[allKeys.length - 1];
 }
 
-function drawChart(labels, data, label, coachKey) {
-  const canvas = document.getElementById('main-chart');
+// 教練專屬：我的堂數歷史趨勢
+async function renderMyTrend() {
+  if (!currentCoach) return;
+  const allKeys = getPeriodKeys(12);
+  const labels = allKeys.map(k => {
+    const [y, m] = k.split('-').map(Number);
+    return `${y}/${m}`;
+  });
+  try {
+    const totals = await Promise.all(allKeys.map(async k => {
+      const data = await fetchReports(k);
+      return data.filter(r => r.coach === currentCoach)
+        .reduce((s, r) => s + (r.classes || []).reduce((ss, c) => ss + c.count, 0), 0);
+    }));
+    drawChart(labels, totals, currentCoach, currentCoach, 'my-chart');
+    // 補充說明：達標/獎金以「本期」標準為準
+    const bench = benchmarks[currentCoach] || {};
+    const note = document.getElementById('my-trend-note');
+    if (note) {
+      const parts = [];
+      if (bench.target) parts.push(`達標 ${bench.target} 堂`);
+      if (bench.bonus)  parts.push(`獎金門檻 ${bench.bonus} 堂`);
+      if (bench.bonusAmount) parts.push(`獎金金額 $${Number(bench.bonusAmount).toLocaleString()}`);
+      note.textContent = parts.length ? `目前標準：${parts.join('　·　')}（圖表虛線）` : '';
+    }
+  } catch (e) {
+    console.error('renderMyTrend error', e);
+  }
+}
+
+function drawChart(labels, data, label, coachKey, canvasId) {
+  const canvas = document.getElementById(canvasId || 'main-chart');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
@@ -2118,6 +2190,7 @@ function initDevSettings() {
   if (el) el.value = gasUrl;
   const codeEl = document.getElementById('gas-code-display');
   if (codeEl) codeEl.textContent = getGasCode();
+  renderCoachPws();
 }
 
 function initSettings() {
@@ -2152,15 +2225,47 @@ function renderCoachMgmt() {
 function renderCourseTypeMgmt() {
   const el = document.getElementById('course-type-list');
   if (!el) return;
-  el.innerHTML = courseTypes.map((t, i) =>
-    `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sand)">
-      <span style="flex:1;font-size:14px">${t}</span>
-      <button class="btn btn-ghost btn-sm" onclick="moveCourseType(${i},-1)" ${i===0?'disabled':''}>↑</button>
-      <button class="btn btn-ghost btn-sm" onclick="moveCourseType(${i},1)" ${i===courseTypes.length-1?'disabled':''}>↓</button>
-      <button class="btn btn-ghost btn-sm" style="color:var(--alert)" onclick="removeCourseType(${i})">移除</button>
-    </div>`
-  ).join('');
+  el.innerHTML = courseTypes.map((t, i) => {
+    const escT = t.replace(/"/g, '&quot;');
+    return `<div style="display:flex;align-items:center;gap:5px;padding:6px 0;border-bottom:1px solid var(--sand)" data-idx="${i}">
+      <input type="text" class="ct-name" value="${escT}" data-orig="${escT}"
+        style="flex:1;min-width:0;font-size:14px;padding:5px 8px;border:1.5px solid var(--sand);border-radius:6px;background:#fafaf8"
+        onkeydown="if(event.key==='Enter')saveCourseTypeRename(${i})">
+      <button class="btn btn-primary btn-sm" style="flex:none;padding:5px 8px" onclick="saveCourseTypeRename(${i})" title="儲存改名">💾</button>
+      <button class="btn btn-ghost btn-sm" style="padding:5px 6px" onclick="moveCourseType(${i},-1)" ${i===0?'disabled':''}>↑</button>
+      <button class="btn btn-ghost btn-sm" style="padding:5px 6px" onclick="moveCourseType(${i},1)" ${i===courseTypes.length-1?'disabled':''}>↓</button>
+      <button class="btn btn-ghost btn-sm" style="color:var(--alert);padding:5px 6px" onclick="removeCourseType(${i})">移除</button>
+    </div>`;
+  }).join('');
   scanPendingCustomCourses();
+}
+
+// 改名：修改主選單+同步更新各教練「固定課程」的參照。過去回報紀錄仍保留舊名以便追溯。
+function saveCourseTypeRename(i) {
+  const row = document.querySelector(`#course-type-list [data-idx="${i}"]`);
+  if (!row) return;
+  const input = row.querySelector('.ct-name');
+  const newName = (input.value || '').trim();
+  const oldName = input.dataset.orig || '';
+  if (!newName) { showToast('⚠ 名稱不可為空'); return; }
+  if (newName === oldName) { showToast('名稱沒有變動'); return; }
+  // 檢查重名（排除自己）
+  const dup = courseTypes.findIndex((n, idx) => idx !== i && n === newName);
+  if (dup !== -1) { showToast('⚠ 已有同名項目'); return; }
+  if (!confirm(`確認把「${oldName}」改名為「${newName}」？\n\n• 主選單、各教練固定課程勾選會立即更新\n• 過去教練用「${oldName}」回報的紀錄會保留舊名，方便追溯`)) return;
+  courseTypes[i] = newName;
+  // 同步更新各教練的固定課程參照
+  Object.keys(fixedClasses).forEach(coach => {
+    (fixedClasses[coach] || []).forEach(fc => {
+      if (fc.name === oldName) fc.name = newName;
+    });
+  });
+  localStorage.setItem(COURSE_TYPES_KEY, JSON.stringify(courseTypes));
+  localStorage.setItem(FIXED_CLASSES_KEY, JSON.stringify(fixedClasses));
+  syncSettingsToGas();
+  renderCourseTypeMgmt();
+  renderFixedClassSettings();
+  showToast(`✅ 已改名為「${newName}」`);
 }
 
 // 掃描最近回報，找出教練自訂但尚未加入選單的課程
@@ -2188,24 +2293,35 @@ async function scanPendingCustomCourses() {
     return;
   }
   box.innerHTML = '<div style="background:#fff8e6;border:1.5px solid #e6c34c;border-radius:10px;padding:12px;margin-bottom:14px">' +
-    '<p style="font-weight:700;color:#8a6d1a;margin-bottom:8px">⚠ 教練自訂了這些課程，尚未加入選單：</p>' +
-    names.map(n =>
-      `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">
-        <span style="flex:1;font-size:14px">${n} <span style="color:var(--text-muted);font-size:12px">（${found[n].join('、')}）</span></span>
-        <button class="btn btn-primary btn-sm" onclick="addCustomToList('${n.replace(/'/g, "\\'")}')">加入選單</button>
-      </div>`
-    ).join('') +
+    '<p style="font-weight:700;color:#8a6d1a;margin-bottom:4px">⚠ 教練自訂了這些課程，尚未加入選單：</p>' +
+    '<p style="font-size:11px;color:#8a6d1a;margin-bottom:10px;line-height:1.4">名稱可直接編輯後再加入（例如補全「小Ava」→「小Ava下場班」）。過去教練用原名回報的紀錄不會自動改，如需修正請到「教練明細」個別編輯。</p>' +
+    names.map((n, idx) => {
+      const cid = 'pc_' + idx;
+      const escN = n.replace(/"/g, '&quot;');
+      return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0">
+        <input type="text" id="${cid}" value="${escN}" data-orig="${escN}"
+          style="flex:1;min-width:0;font-size:13px;padding:5px 8px;border:1.5px solid #e6c34c;border-radius:6px;background:#fff">
+        <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">（${found[n].join('、')}）</span>
+        <button class="btn btn-primary btn-sm" style="flex:none" onclick="addCustomToList('${cid}')">加入選單</button>
+      </div>`;
+    }).join('') +
     '</div>';
 }
 
-// 把自訂課程一鍵加入正式選單
-function addCustomToList(name) {
-  if (courseTypes.indexOf(name) === -1) {
-    courseTypes.push(name);
-    saveCourseTypes();
-    renderCourseTypeMgmt();
-    showToast('✅ 已加入「' + name + '」');
-  }
+// 把自訂課程加入正式選單（讀取輸入框，允許管理員先修改名稱）
+function addCustomToList(inputId) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  const name = el.value.trim();
+  const orig = el.dataset.orig || '';
+  if (!name) { showToast('名稱不可為空'); return; }
+  if (courseTypes.indexOf(name) !== -1) { showToast('選單已有此項目'); return; }
+  courseTypes.push(name);
+  saveCourseTypes();
+  renderCourseTypeMgmt();
+  const changed = (name !== orig);
+  showToast(changed ? `✅ 已改名並加入「${name}」` : `✅ 已加入「${name}」`);
+  scanPendingCustomCourses();
 }
 
 function addCourseType() {
@@ -2251,7 +2367,6 @@ function renderFixedClassSettings() {
 
     const rows = courseTypes.map(t => {
       const checked = fixedMap.hasOwnProperty(t) ? 'checked' : '';
-      const cnt = fixedMap[t] || '';
       const safeCoach = coach.replace(/[^a-zA-Z0-9]/g, '_');
       const safeType  = t.replace(/[^a-zA-Z0-9一-鿿]/g, '_');
       const cbId = `fc_${safeCoach}_${safeType}`;
@@ -2259,11 +2374,6 @@ function renderFixedClassSettings() {
         <input type="checkbox" id="${cbId}" data-coach="${coach}" data-type="${t}"
           ${checked} style="width:16px;height:16px;accent-color:var(--green-mid);flex:none">
         <label for="${cbId}" style="flex:1;font-size:13px;cursor:pointer">${t}</label>
-        <input type="number" min="0" placeholder="堂（可空白）"
-          data-coach="${coach}" data-type="${t}" data-role="fixed-count"
-          value="${cnt}"
-          style="width:90px;padding:4px 8px;font-size:12px;text-align:center;border:1.5px solid var(--sand);border-radius:6px;background:#fafaf8"
-          title="預填堂數（留空則教練自填）">
       </div>`;
     }).join('');
 
@@ -2282,12 +2392,7 @@ function saveFixedClasses() {
     const type  = cb.dataset.type;
     if (cb.checked) {
       if (!newFixed[coach]) newFixed[coach] = [];
-      // Find matching count input
-      const countEl = document.querySelector(
-        `input[data-role="fixed-count"][data-coach="${coach}"][data-type="${type}"]`
-      );
-      const cnt = countEl ? (parseInt(countEl.value) || '') : '';
-      newFixed[coach].push({ name: type, count: cnt });
+      newFixed[coach].push({ name: type });
     }
   });
   fixedClasses = newFixed;
@@ -2475,6 +2580,44 @@ function changeAdminPw() {
   document.getElementById('new-pw2').value = '';
 }
 
+function renderCoachPws() {
+  const el = document.getElementById('coach-pws-list');
+  if (!el) return;
+  el.innerHTML = coaches.map((c, i) => {
+    const safeId = 'cpw_' + c.replace(/[^a-zA-Z0-9]/g, '_');
+    const cur = coachPws[c] || '';
+    return `<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--sand)">
+      <span style="flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c}</span>
+      <input type="password" id="${safeId}" data-coach="${c}" class="coach-pw-input"
+        value="${cur.replace(/"/g, '&quot;')}" placeholder="未設定"
+        style="flex:1.4;min-width:0;font-size:13px;padding:5px 8px;border:1.5px solid var(--sand);border-radius:6px;background:#fafaf8;font-family:monospace">
+      <button onclick="toggleCoachPwView('${safeId}')" style="background:none;border:none;cursor:pointer;padding:4px 6px;font-size:14px" title="顯示/隱藏">👁</button>
+    </div>`;
+  }).join('');
+}
+
+function toggleCoachPwView(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.type = (el.type === 'password') ? 'text' : 'password';
+}
+
+function saveAllCoachPws() {
+  const newPws = {};
+  document.querySelectorAll('.coach-pw-input').forEach(inp => {
+    const coach = inp.dataset.coach;
+    const pw = (inp.value || '').trim();
+    if (pw) newPws[coach] = pw;
+  });
+  if (Object.keys(newPws).length === 0) {
+    if (!confirm('沒有任何教練設定密碼，這樣所有教練都無法登入。確定要繼續？')) return;
+  }
+  coachPws = newPws;
+  localStorage.setItem(COACH_PWS_KEY, JSON.stringify(coachPws));
+  syncSettingsToGas();
+  showToast('✅ 教練密碼已儲存，同步中…');
+}
+
 // ══════════════════════════════════════════
 // DATA LAYER
 // ══════════════════════════════════════════
@@ -2569,6 +2712,7 @@ async function syncSettingsToGas() {
   const payload = { type: 'settings', coaches, courseTypes, fixedClasses };
   if (benchmarks && Object.keys(benchmarks).length > 0) payload.benchmarks = benchmarks;
   if (benchHistory && Object.keys(benchHistory).length > 0) payload.benchHistory = benchHistory;
+  if (coachPws && Object.keys(coachPws).length > 0) payload.coachPws = coachPws;
   try {
     await fetch(gasUrl, {
       method: 'POST',
