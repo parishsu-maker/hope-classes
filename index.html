@@ -2565,11 +2565,15 @@ async function syncSettingsToGas() {
   if (!gasUrl) return;
   // 用 no-cors 避免 Safari 行動版 CORS preflight 問題
   // no-cors 模式下無法讀取回應，但資料確實會送到 GAS
+  // ⚠️ 只在本機有實際資料時才推 benchmarks/benchHistory，避免其他儲存動作用空物件把 GAS 已存的達標/獎金/歷史蓋掉
+  const payload = { type: 'settings', coaches, courseTypes, fixedClasses };
+  if (benchmarks && Object.keys(benchmarks).length > 0) payload.benchmarks = benchmarks;
+  if (benchHistory && Object.keys(benchHistory).length > 0) payload.benchHistory = benchHistory;
   try {
     await fetch(gasUrl, {
       method: 'POST',
       mode: 'no-cors',
-      body: JSON.stringify({ type: 'settings', coaches, courseTypes, fixedClasses, benchmarks, benchHistory })
+      body: JSON.stringify(payload)
     });
     showSyncStatus(true);
   } catch(e) {
