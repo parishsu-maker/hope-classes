@@ -628,7 +628,11 @@
     <div class="metrics-row" id="overview-metrics">
       <div class="metric-card"><div class="metric-num" id="m-total">—</div><div class="metric-label">總堂數</div></div>
       <div class="metric-card"><div class="metric-num" id="m-reached">—</div><div class="metric-label">達標教練</div></div>
-      <div class="metric-card"><div class="metric-num" id="m-bonus">—</div><div class="metric-label">拿獎金</div></div>
+      <div class="metric-card">
+        <div class="metric-num" id="m-bonus">—</div>
+        <div id="m-bonus-amt" style="font-size:12px;font-weight:700;color:var(--gold);margin-top:2px;line-height:1"></div>
+        <div class="metric-label">拿獎金</div>
+      </div>
     </div>
 
     <div class="card">
@@ -761,20 +765,11 @@
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">每次儲存都會保留歷史記錄，各期自動套用當時的標準。點 🕐 可查看該教練的歷史版本。</p>
       <div id="bench-settings"></div>
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sand)">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-          <div style="font-size:12px;color:var(--text-muted);flex:1">
-            批次設定：達標 <input type="number" id="default-target" value="0" min="0" style="width:54px;padding:4px 6px;font-size:12px"> 堂　獎金 <input type="number" id="default-bonus" value="0" min="0" style="width:54px;padding:4px 6px;font-size:12px"> 堂
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="applyDefault()">套用到所有人</button>
-        </div>
         <div style="margin-bottom:10px">
           <label style="font-size:12px;color:var(--text-muted);font-weight:700;display:block;margin-bottom:4px">本次調整備註（選填）</label>
           <input type="text" id="bench-save-note" placeholder="例：Q3 晉升調整、新教練起始標準…" style="font-size:13px">
         </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-primary" style="flex:1" onclick="saveBenchmarks()">💾 儲存並記錄歷史</button>
-          <button class="btn btn-ghost" style="flex:none;white-space:nowrap" onclick="pushBenchmarksToGas()" title="強制把目前數字推送到GAS">☁️ 推送GAS</button>
-        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="saveBenchmarks()">💾 儲存並記錄歷史</button>
       </div>
     </div>
 
@@ -1003,22 +998,9 @@ function adminLogin() {
 }
 
 function logout() {
-  currentRole = null;
-  currentCoach = null;
-  document.getElementById('main-app').style.display = 'none';
-  document.getElementById('btn-logout').style.display = 'none';
-  document.getElementById('coach-select-wrap').style.display = '';
-  document.getElementById('admin-login-wrap').style.display = 'none';
-  document.getElementById('admin-pw').value = '';
-  const su = document.getElementById('sync-user');
-  if (su) su.textContent = '';
-  const bar = document.getElementById('sync-status');
-  if (bar) bar.style.display = 'none';
-  // 清除各分頁的動態內容，避免下一位登入者看到殘留畫面
-  ['my-history-list','my-data-hint','class-rows','detail-content'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = '';
-  });
+  // 徹底清空所有畫面殘留：直接重新載入頁面回到教練登入首頁
+  // 這樣不會有任何 DOM 內容、輸入框、圖表、選擇器等資料殘留
+  location.reload();
 }
 
 // ══════════════════════════════════════════
@@ -1142,6 +1124,14 @@ function switchTab(id, evt) {
 // COACH APP
 // ══════════════════════════════════════════
 function initCoachApp() {
+  // 切換 active 頁到「填寫課程」（避免上一位管理員停留在後台設定時，換教練登入看到管理畫面）
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const rp = document.getElementById('page-report');
+  if (rp) rp.classList.add('active');
+  document.querySelectorAll('#coach-nav .nav-tab').forEach(t => t.classList.remove('active'));
+  const firstCoachTab = document.querySelector('#coach-nav .nav-tab');
+  if (firstCoachTab) firstCoachTab.classList.add('active');
+
   // 本週起訖（強制用本地時間，清除舊值再設新值）
   const today = new Date();
   const dow = today.getDay() || 7; // 1=Mon...7=Sun
@@ -1682,6 +1672,14 @@ function shiftMyPeriod(delta) {
 // ADMIN APP
 // ══════════════════════════════════════════
 function initAdminApp() {
+  // 切換 active 頁到「團隊月總覽」（避免看到教練的填寫課程畫面）
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const ov = document.getElementById('page-overview');
+  if (ov) ov.classList.add('active');
+  document.querySelectorAll('#admin-nav .nav-tab').forEach(t => t.classList.remove('active'));
+  const firstAdminTab = document.querySelector('#admin-nav .nav-tab');
+  if (firstAdminTab) firstAdminTab.classList.add('active');
+
   const sel = document.getElementById('admin-period-sel');
   sel.innerHTML = '';
   getPeriodKeys(18).reverse().forEach(k => {
@@ -1702,7 +1700,7 @@ async function loadOverview() {
     const data = await fetchReports(key);
     const coachTotals = aggregateByCoach(data);
 
-    let totalAll = 0, reachedCount = 0, bonusCount = 0;
+    let totalAll = 0, reachedCount = 0, bonusCount = 0, totalBonusAmount = 0;
 
     let rows = '';
     coaches.forEach(name => {
@@ -1725,8 +1723,11 @@ async function loadOverview() {
       }
       if (bonusT > 0) {
         if (total >= bonusT) {
-          bonusPill = '<span class="pill pill-bonus">🏆</span>';
+          const amt = bench.bonusAmount || 0;
+          const amtStr = amt > 0 ? ` $${Number(amt).toLocaleString()}` : '';
+          bonusPill = `<span class="pill pill-bonus">🏆${amtStr}</span>`;
           bonusCount++;
+          totalBonusAmount += amt;
         } else {
           bonusPill = `<span class="pill pill-null">差${bonusT-total}</span>`;
         }
@@ -1744,6 +1745,8 @@ async function loadOverview() {
     document.getElementById('m-total').textContent = totalAll;
     document.getElementById('m-reached').textContent = reachedCount;
     document.getElementById('m-bonus').textContent = bonusCount;
+    const amtEl = document.getElementById('m-bonus-amt');
+    if (amtEl) amtEl.textContent = totalBonusAmount > 0 ? '$' + Number(totalBonusAmount).toLocaleString() : '';
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--alert)">載入失敗</td></tr>`;
   }
@@ -2296,10 +2299,11 @@ function saveFixedClasses() {
 function renderBenchSettings() {
   const el = document.getElementById('bench-settings');
   el.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 80px 80px 28px;gap:6px;margin-bottom:8px">
+    <div style="display:grid;grid-template-columns:1fr 54px 54px 78px 26px;gap:5px;margin-bottom:8px">
       <div style="font-size:11px;color:var(--text-muted);font-weight:700;padding:4px 0">教練</div>
       <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-align:center;padding:4px 0">達標</div>
       <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-align:center;padding:4px 0">獎金</div>
+      <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-align:center;padding:4px 0">獎金金額</div>
       <div></div>
     </div>` +
     coaches.map(c => {
@@ -2308,19 +2312,22 @@ function renderBenchSettings() {
       const histId = 'bh_' + c.replace(/[^a-zA-Z0-9]/g,'_');
       const histRows = hist.map(h => {
         const [y,m] = h.from.split('-').map(Number);
+        const amtTxt = (h.bonusAmount != null && h.bonusAmount !== '') ? `　獎金金額 <b>$${Number(h.bonusAmount).toLocaleString()}</b>` : '';
         return `<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);padding:2px 0">
           <span>${y}/${m} 起</span>
-          <span>達標 <b>${h.target}</b>　獎金 <b>${h.bonus||'—'}</b>${h.note ? `　<span style="color:var(--gold)">${h.note}</span>` : ''}</span>
+          <span>達標 <b>${h.target}</b>　獎金 <b>${h.bonus||'—'}</b>${amtTxt}${h.note ? `　<span style="color:var(--gold)">${h.note}</span>` : ''}</span>
         </div>`;
       }).join('');
       return `
         <div style="padding:6px 0;border-bottom:1px solid var(--sand)">
-          <div style="display:grid;grid-template-columns:1fr 80px 80px 28px;gap:6px;align-items:center">
+          <div style="display:grid;grid-template-columns:1fr 54px 54px 78px 26px;gap:5px;align-items:center">
             <div style="font-size:14px;font-weight:600">${c}</div>
             <input type="number" min="0" class="bench-input" data-coach="${c}" data-type="target"
               value="${b.target||0}" style="text-align:center">
             <input type="number" min="0" class="bench-input" data-coach="${c}" data-type="bonus"
               value="${b.bonus||0}" style="text-align:center">
+            <input type="number" min="0" class="bench-input" data-coach="${c}" data-type="bonusAmount"
+              value="${b.bonusAmount||0}" style="text-align:center" placeholder="$">
             <button onclick="toggleBenchHistory('${histId}')"
               style="background:none;border:none;cursor:pointer;font-size:14px;padding:0;color:var(--text-muted)"
               title="查看歷史">🕐</button>
@@ -2398,16 +2405,17 @@ function saveBenchmarks() {
   Object.keys(newBench).forEach(coach => {
     const prev = benchmarks[coach] || {};
     const next = newBench[coach];
-    if (prev.target !== next.target || prev.bonus !== next.bonus) {
+    if (prev.target !== next.target || prev.bonus !== next.bonus || prev.bonusAmount !== next.bonusAmount) {
       if (!benchHistory[coach]) benchHistory[coach] = [];
       // Remove any existing entry for the same period (overwrite)
       benchHistory[coach] = benchHistory[coach].filter(e => e.from !== effectivePeriod);
       benchHistory[coach].push({
-        target: next.target,
-        bonus:  next.bonus,
-        from:   effectivePeriod,
-        savedAt: new Date().toISOString(),
-        note:   note
+        target:      next.target,
+        bonus:       next.bonus,
+        bonusAmount: next.bonusAmount,
+        from:        effectivePeriod,
+        savedAt:     new Date().toISOString(),
+        note:        note
       });
     }
   });
