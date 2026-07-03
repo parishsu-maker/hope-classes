@@ -107,7 +107,10 @@
     background: #fff;
     border-bottom: 2px solid var(--sand);
     overflow-x: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
   }
   .nav-tab {
     flex: none;
@@ -1011,6 +1014,11 @@ function logout() {
   if (su) su.textContent = '';
   const bar = document.getElementById('sync-status');
   if (bar) bar.style.display = 'none';
+  // 清除各分頁的動態內容，避免下一位登入者看到殘留畫面
+  ['my-history-list','my-data-hint','class-rows','detail-content'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
 }
 
 // ══════════════════════════════════════════
@@ -1084,12 +1092,16 @@ async function syncSettingsFromGas() {
     }
     if (Object.prototype.hasOwnProperty.call(d, 'benchmarks') && Object.keys(d.benchmarks).length > 0) {
       // 只有 GAS 有實際資料才覆蓋（避免 GAS 尚未儲存過時用空物件蓋掉預設值）
+      const prev = JSON.stringify(benchmarks);
       benchmarks = d.benchmarks;
       localStorage.setItem(BENCH_KEY, JSON.stringify(benchmarks));
+      if (JSON.stringify(benchmarks) !== prev) updated = true;
     }
     if (Object.prototype.hasOwnProperty.call(d, 'benchHistory') && Object.keys(d.benchHistory).length > 0) {
+      const prev = JSON.stringify(benchHistory);
       benchHistory = d.benchHistory;
       localStorage.setItem(BENCH_HISTORY_KEY, JSON.stringify(benchHistory));
+      if (JSON.stringify(benchHistory) !== prev) updated = true;
     }
     showSyncStatus(true);
     return updated;
@@ -1142,6 +1154,11 @@ function initCoachApp() {
 
   // Clear rows, then pre-fill with fixed classes for this coach
   document.getElementById('class-rows').innerHTML = '';
+  // 清除「我的紀錄」殘留內容（避免上一位教練切換後看到舊資料）
+  const _histEl = document.getElementById('my-history-list');
+  if (_histEl) _histEl.innerHTML = '';
+  const _hintEl = document.getElementById('my-data-hint');
+  if (_hintEl) _hintEl.innerHTML = '';
   const fixed = fixedClasses[currentCoach] || [];
   if (fixed.length > 0) {
     fixed.forEach(fc => addFixedRow(fc.name, fc.count || ''));
@@ -1428,6 +1445,8 @@ async function loadCoachPeriodSummary(periodKey) {
 async function loadMyHistory() {
   const key = document.getElementById('my-period-sel').value;
   const list = document.getElementById('my-history-list');
+  const hint = document.getElementById('my-data-hint');
+  if (hint) hint.innerHTML = '';
   list.innerHTML = '<span class="spinner"></span> 載入中…';
 
   try {
