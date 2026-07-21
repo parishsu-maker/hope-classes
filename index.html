@@ -999,10 +999,10 @@ function currentPeriodKey() { return getPeriodKey(new Date()); }
 
 function getPeriodKeys(monthsBack = 12) {
   const keys = [];
-  let d = new Date();
+  let key = currentPeriodKey();
   for (let i = 0; i <= monthsBack; i++) {
-    keys.unshift(getPeriodKey(d));
-    d = new Date(d.getFullYear(), d.getMonth() - 1, 15);
+    keys.unshift(key);
+    key = shiftPeriod(key, -1);
   }
   return [...new Set(keys)];
 }
