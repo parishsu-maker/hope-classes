@@ -1622,6 +1622,45 @@ async function loadCoachPeriodSummary(periodKey) {
   }
 }
 
+// ══════════════════════════════════════════
+// 各課程總計（教練明細 / 我的紀錄 共用）
+// ══════════════════════════════════════════
+function buildClassTotalsHtml(records) {
+  var map = {};
+  var customFlag = {};
+  var total = 0;
+  (records || []).forEach(function(r) {
+    ((r && r.classes) || []).forEach(function(c) {
+      var n = (c && c.name) ? String(c.name) : '（未命名）';
+      var v = Number(c && c.count) || 0;
+      map[n] = (map[n] || 0) + v;
+      if (c && c.isCustom) customFlag[n] = true;
+      total += v;
+    });
+  });
+  var names = Object.keys(map);
+  if (names.length === 0) return '';
+  names.sort(function(a, b) { return map[b] - map[a]; });
+  total = Math.round(total * 10) / 10;
+
+  var rows = names.map(function(n) {
+    var v = Math.round(map[n] * 10) / 10;
+    var tag = customFlag[n]
+      ? ' <span style="font-size:10px;color:#8a6d1a;background:#fff8e6;border:1px solid #e6c34c;border-radius:4px;padding:0 4px">自訂</span>'
+      : '';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px solid var(--sand)">' +
+             '<span style="flex:1">' + n + tag + '</span>' +
+             '<span style="font-weight:700;color:var(--green-mid);white-space:nowrap">' + v + ' 堂</span>' +
+           '</div>';
+  }).join('');
+
+  return '<div>' + rows +
+         '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 2px">' +
+           '<span style="font-size:14px;font-weight:700">合計</span>' +
+           '<span style="font-size:16px;font-weight:800;color:var(--green-dark);white-space:nowrap">' + total + ' 堂</span>' +
+         '</div></div>';
+}
+
 async function loadMyHistory() {
   const key = document.getElementById('my-period-sel').value;
   const list = document.getElementById('my-history-list');
@@ -1643,6 +1682,14 @@ async function loadMyHistory() {
     mine.sort((a,b) => (b.weekStart || '').localeCompare(a.weekStart || ''));
 
     let html = '';
+    const myTotalsHtml = buildClassTotalsHtml(mine);
+    if (myTotalsHtml) {
+      html += `
+        <div style="background:var(--cream);border:1.5px solid var(--sand);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+          <div style="font-size:13px;font-weight:700;color:var(--green-dark);margin-bottom:4px">📦 各課程總計</div>
+          ${myTotalsHtml}
+        </div>`;
+    }
     mine.forEach(r => {
       const weekTotal = (r.classes || []).reduce((s,c) => s + c.count, 0);
       const items = (r.classes || []).map(c =>
@@ -2061,6 +2108,16 @@ async function loadCoachDetail() {
       html += `</div>`;
     }
     html += `</div>`;
+
+    // 各課程總計
+    const detailTotalsHtml = buildClassTotalsHtml(current.records);
+    if (detailTotalsHtml) {
+      html += `
+        <div class="card">
+          <div class="card-title">📦 各課程總計 — ${periodLabel(current.key)}</div>
+          ${detailTotalsHtml}
+        </div>`;
+    }
 
     // History table
     html += `
