@@ -526,18 +526,21 @@
     <div style="flex:1;height:1px;background:var(--sand)"></div>
   </div>
 
-  <button class="btn btn-ghost" style="width:100%;background:var(--sand);border:none;color:var(--text-muted)" onclick="showAdminLogin()">🔐 管理員登入</button>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-ghost" style="flex:1;background:var(--sand);border:none;color:var(--text-muted);font-size:13px;padding:10px 6px" onclick="showAdminLogin('admin')">👑 首席教練</button>
+    <button class="btn btn-ghost" style="flex:1;background:var(--sand);border:none;color:var(--text-muted);font-size:13px;padding:10px 6px" onclick="showAdminLogin('verify')">🔍 行政核對</button>
+  </div>
 
   <div style="margin-top:36px;text-align:center;border-top:1px solid var(--sand);padding-top:16px">
     <div style="font-size:12px;color:var(--text-muted)">元木運動內部系統 · 僅限授權人員使用</div>
-    <div style="font-size:11px;color:#bbb;margin-top:3px">v2026-07-06</div>
+    <div style="font-size:11px;color:#bbb;margin-top:3px">v2026-07-23b</div>
   </div>
 </div>
 
 <!-- Admin login -->
 <div id="admin-login-wrap" style="display:none">
-  <div class="welcome-title" style="margin-bottom:4px">管理員後台</div>
-  <div class="welcome-sub" style="margin-bottom:20px">請輸入密碼</div>
+  <div class="welcome-title" id="admin-login-title" style="margin-bottom:4px">首席教練後台</div>
+  <div class="welcome-sub" id="admin-login-sub" style="margin-bottom:20px">請輸入密碼</div>
   <div class="field-group">
     <label class="field-label">密碼</label>
     <input type="password" id="admin-pw" placeholder="管理員密碼" onkeydown="if(event.key==='Enter')adminLogin()" style="width:100%;height:50px;font-size:16px;padding:0 16px">
@@ -560,9 +563,15 @@
   <div class="nav-tabs" id="admin-nav" style="display:none">
     <div class="nav-tab active" onclick="switchTab('overview', event)">📊 團隊月總覽</div>
     <div class="nav-tab" onclick="switchTab('detail', event)">👤 教練明細</div>
+    <div class="nav-tab" onclick="switchTab('verify', event)">🔍 行政核對</div>
     <div class="nav-tab" onclick="switchTab('chart', event)">📈 趨勢圖表</div>
     <div class="nav-tab" onclick="switchTab('settings', event)">⚙️ 後台設定</div>
     <div class="nav-tab" onclick="switchTab('devsettings', event)">🔧 程式設定</div>
+  </div>
+
+  <!-- Nav tabs (verify / 行政) -->
+  <div class="nav-tabs" id="verify-nav" style="display:none">
+    <div class="nav-tab active" onclick="switchTab('verify', event)">🔍 行政核對</div>
   </div>
 
   <!-- ── Coach: Report page ── -->
@@ -685,6 +694,28 @@
       </div>
     </div>
     <div id="detail-content"></div>
+  </div>
+
+  <!-- ── Admin: Verify (行政核對) ── -->
+  <div class="page" id="page-verify">
+    <div class="period-nav">
+      <button class="period-nav-btn" onclick="shiftVerifyPeriod(1)">‹</button>
+      <select id="verify-period-sel" onchange="loadVerify()"></select>
+      <button class="period-nav-btn" onclick="shiftVerifyPeriod(-1)">›</button>
+    </div>
+
+    <div class="metrics-row">
+      <div class="metric-card"><div class="metric-num" id="vf-match" style="color:var(--green-soft)">—</div><div class="metric-label">一致</div></div>
+      <div class="metric-card"><div class="metric-num" id="vf-mismatch" style="color:var(--alert)">—</div><div class="metric-label">不一致</div></div>
+      <div class="metric-card"><div class="metric-num" id="vf-pending" style="color:var(--text-muted)">—</div><div class="metric-label">尚未核對</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔍 行政核對課程數</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">點教練姓名可展開，逐項輸入行政核對的堂數，系統會<strong>逐項</strong>與教練自填比對，直接標出是哪個課程對不上。</p>
+      <div id="verify-list"></div>
+      <button class="btn btn-primary" id="verify-save-btn" style="width:100%;margin-top:14px" onclick="saveVerify()">💾 儲存本期核對結果</button>
+    </div>
   </div>
 
   <!-- ── Admin: Chart ── -->
@@ -832,7 +863,8 @@
     </div>
 
     <div class="card">
-      <div class="card-title">🔐 管理員密碼</div>
+      <div class="card-title">👑 首席教練密碼</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">擁有所有權限（總覽、明細、核對、圖表、所有設定）</p>
       <div class="field-group">
         <label class="field-label">新密碼</label>
         <input type="password" id="new-pw1">
@@ -842,6 +874,27 @@
         <input type="password" id="new-pw2">
       </div>
       <button class="btn btn-primary btn-sm" onclick="changeAdminPw()">更新密碼</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔍 行政核對密碼</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">行政人員專用，登入後<strong>只能看到「行政核對」頁面</strong>，無法檢視其他統計或修改設定</p>
+      <div class="field-group">
+        <label class="field-label">目前密碼</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="password" id="cur-verify-pw" readonly style="flex:1;font-family:monospace;background:#f0ede3">
+          <button onclick="toggleCoachPwView('cur-verify-pw')" style="background:none;border:none;cursor:pointer;padding:4px 6px;font-size:15px" title="顯示/隱藏">👁</button>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">新密碼</label>
+        <input type="password" id="new-vpw1">
+      </div>
+      <div class="field-group">
+        <label class="field-label">確認密碼</label>
+        <input type="password" id="new-vpw2">
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="changeVerifyPw()">更新行政密碼</button>
     </div>
 
     <div class="card">
@@ -918,6 +971,7 @@ const localStorage = _lsAvailable ? window.localStorage : {
 
 const STORAGE_KEY = 'hope_classes_';
 const ADMIN_PW_KEY = 'hope_classes_admin_pw';
+const VERIFY_PW_KEY = 'hope_classes_verify_pw';
 const COACH_PWS_KEY = 'hope_classes_coach_pws';
 const GAS_KEY = 'hope_classes_gas';
 const COACHES_KEY = 'hope_classes_coaches';
@@ -951,6 +1005,9 @@ var benchHistory   = JSON.parse(localStorage.getItem(BENCH_HISTORY_KEY) || '{}')
 // fixedClasses: { coachName: [{name, count}] }
 var fixedClasses   = JSON.parse(localStorage.getItem(FIXED_CLASSES_KEY) || '{}');
 var adminPw = localStorage.getItem(ADMIN_PW_KEY) || 'carolhope2026';
+// 行政核對專用密碼（只能看行政核對頁）
+var verifyPw = localStorage.getItem(VERIFY_PW_KEY) || 'hopeverify2026';
+var pendingLoginRole = 'admin'; // 記住使用者點的是首席還是行政
 // coachPws: { "教練名": "密碼" }，每位教練各自一組密碼
 var coachPws = JSON.parse(localStorage.getItem(COACH_PWS_KEY) || '{}');
 var allData = []; // fetched from GAS
@@ -1058,7 +1115,19 @@ function showCoachLogin() {
   document.getElementById('btn-logout').style.display = 'none';
 }
 
-function showAdminLogin() {
+function showAdminLogin(role) {
+  pendingLoginRole = role || 'admin';
+  const titleEl = document.getElementById('admin-login-title');
+  const subEl   = document.getElementById('admin-login-sub');
+  if (pendingLoginRole === 'verify') {
+    if (titleEl) titleEl.textContent = '行政核對登入';
+    if (subEl)   subEl.textContent   = '僅可檢視與填寫行政核對';
+  } else {
+    if (titleEl) titleEl.textContent = '首席教練後台';
+    if (subEl)   subEl.textContent   = '請輸入密碼';
+  }
+  const pwEl = document.getElementById('admin-pw');
+  if (pwEl) pwEl.value = '';
   document.getElementById('coach-select-wrap').style.display = 'none';
   document.getElementById('admin-login-wrap').style.display = '';
 }
@@ -1079,9 +1148,15 @@ function enterCoach() {
 
 function adminLogin() {
   const pw = document.getElementById('admin-pw').value;
-  if (pw !== adminPw) { showToast('密碼錯誤'); return; }
-  currentRole = 'admin';
+  if (pendingLoginRole === 'verify') {
+    if (pw !== verifyPw) { showToast('密碼錯誤'); return; }
+    currentRole = 'verify';
+  } else {
+    if (pw !== adminPw) { showToast('密碼錯誤'); return; }
+    currentRole = 'admin';
+  }
   currentCoach = null;
+  document.getElementById('admin-pw').value = '';
   initApp();
 }
 
@@ -1105,10 +1180,17 @@ async function initApp() {
   if (currentRole === 'coach') {
     document.getElementById('coach-nav').style.display = 'flex';
     document.getElementById('admin-nav').style.display = 'none';
+    document.getElementById('verify-nav').style.display = 'none';
     initCoachApp();
+  } else if (currentRole === 'verify') {
+    document.getElementById('coach-nav').style.display = 'none';
+    document.getElementById('admin-nav').style.display = 'none';
+    document.getElementById('verify-nav').style.display = 'flex';
+    initVerifyApp();
   } else {
     document.getElementById('coach-nav').style.display = 'none';
     document.getElementById('admin-nav').style.display = 'flex';
+    document.getElementById('verify-nav').style.display = 'none';
     initAdminApp();
   }
 
@@ -1117,6 +1199,8 @@ async function initApp() {
     if (!updated) return;
     if (currentRole === 'coach') {
       initCoachApp();
+    } else if (currentRole === 'verify') {
+      loadVerify();
     } else {
       // 重新載入目前顯示中的管理員分頁
       const activePage = document.querySelector('.page.active');
@@ -1179,6 +1263,14 @@ async function syncSettingsFromGas() {
       localStorage.setItem(COACH_PWS_KEY, JSON.stringify(coachPws));
       if (JSON.stringify(coachPws) !== prev) updated = true;
     }
+    if (d.adminPw) {
+      adminPw = d.adminPw;
+      localStorage.setItem(ADMIN_PW_KEY, adminPw);
+    }
+    if (d.verifyPw) {
+      verifyPw = d.verifyPw;
+      localStorage.setItem(VERIFY_PW_KEY, verifyPw);
+    }
     showSyncStatus(true);
     return updated;
   } catch(e) {
@@ -1208,6 +1300,7 @@ function switchTab(id, evt) {
 
   if (id === 'overview')    loadOverview();
   if (id === 'detail')      loadDetailCoachList();
+  if (id === 'verify')      { ensureVerifyPeriodSelector(); loadVerify(); }
   if (id === 'chart')       renderChart();
   if (id === 'settings')    initSettings();
   if (id === 'devsettings') initDevSettings();
@@ -1766,6 +1859,20 @@ function shiftMyPeriod(delta) {
 }
 
 // ══════════════════════════════════════════
+// VERIFY APP (行政人員：只能看行政核對)
+// ══════════════════════════════════════════
+function initVerifyApp() {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const vp = document.getElementById('page-verify');
+  if (vp) vp.classList.add('active');
+  document.querySelectorAll('#verify-nav .nav-tab').forEach(t => t.classList.remove('active'));
+  const firstTab = document.querySelector('#verify-nav .nav-tab');
+  if (firstTab) firstTab.classList.add('active');
+  ensureVerifyPeriodSelector();
+  loadVerify();
+}
+
+// ══════════════════════════════════════════
 // ADMIN APP
 // ══════════════════════════════════════════
 function initAdminApp() {
@@ -2254,6 +2361,8 @@ function drawChart(labels, data, label, coachKey, canvasId) {
 function initDevSettings() {
   const el = document.getElementById('gas-url');
   if (el) el.value = gasUrl;
+  const curVEl = document.getElementById('cur-verify-pw');
+  if (curVEl) curVEl.value = verifyPw;
   const codeEl = document.getElementById('gas-code-display');
   if (codeEl) codeEl.textContent = getGasCode();
   renderCoachPws();
@@ -2641,9 +2750,25 @@ function changeAdminPw() {
   if (p1 !== p2) { showToast('兩次密碼不一致'); return; }
   adminPw = p1;
   localStorage.setItem(ADMIN_PW_KEY, p1);
-  showToast('✅ 密碼已更新');
+  syncSettingsToGas(); // 同步到 GAS，其他裝置也能用新密碼登入
+  showToast('✅ 首席教練密碼已更新，同步中…');
   document.getElementById('new-pw1').value = '';
   document.getElementById('new-pw2').value = '';
+}
+
+function changeVerifyPw() {
+  const p1 = document.getElementById('new-vpw1').value;
+  const p2 = document.getElementById('new-vpw2').value;
+  if (!p1) { showToast('請輸入新密碼'); return; }
+  if (p1 !== p2) { showToast('兩次密碼不一致'); return; }
+  verifyPw = p1;
+  localStorage.setItem(VERIFY_PW_KEY, p1);
+  syncSettingsToGas();
+  showToast('✅ 行政密碼已更新，同步中…');
+  document.getElementById('new-vpw1').value = '';
+  document.getElementById('new-vpw2').value = '';
+  const curEl = document.getElementById('cur-verify-pw');
+  if (curEl) curEl.value = verifyPw;
 }
 
 function renderCoachPws() {
@@ -2779,6 +2904,8 @@ async function syncSettingsToGas() {
   if (benchmarks && Object.keys(benchmarks).length > 0) payload.benchmarks = benchmarks;
   if (benchHistory && Object.keys(benchHistory).length > 0) payload.benchHistory = benchHistory;
   if (coachPws && Object.keys(coachPws).length > 0) payload.coachPws = coachPws;
+  if (adminPw)  payload.adminPw  = adminPw;
+  if (verifyPw) payload.verifyPw = verifyPw;
   try {
     await fetch(gasUrl, {
       method: 'POST',
@@ -2800,6 +2927,298 @@ function aggregateByCoach(data) {
     (r.classes||[]).forEach(c => { map[r.coach] += c.count; });
   });
   return map;
+}
+
+// ══════════════════════════════════════════
+// ADMIN VERIFY (行政核對)
+// ══════════════════════════════════════════
+const _verifyCache = {};
+const _verifyCacheTime = {};
+
+async function fetchAdminVerify(periodKey) {
+  const now = Date.now();
+  if (_verifyCache[periodKey] !== undefined && (now - (_verifyCacheTime[periodKey]||0)) < CACHE_TTL) {
+    return _verifyCache[periodKey];
+  }
+  if (!gasUrl) return {};
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const r = await fetch(gasUrl + `?type=admin_verify&period=${periodKey}`, { signal: controller.signal });
+    clearTimeout(timer);
+    const d = await r.json();
+    const map = {};
+    (d.data || []).forEach(rec => { map[rec.coach] = rec; });
+    _verifyCache[periodKey] = map;
+    _verifyCacheTime[periodKey] = now;
+    return map;
+  } catch(e) {
+    return _verifyCache[periodKey] || {};
+  }
+}
+
+function invalidateVerifyCache(periodKey) {
+  delete _verifyCache[periodKey];
+}
+
+function ensureVerifyPeriodSelector() {
+  const sel = document.getElementById('verify-period-sel');
+  if (!sel || sel.options.length > 0) return;
+  getPeriodKeys(18).reverse().forEach(k => {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = periodLabel(k);
+    sel.appendChild(o);
+  });
+  sel.value = currentPeriodKey();
+}
+
+function shiftVerifyPeriod(delta) {
+  const sel = document.getElementById('verify-period-sel');
+  const keys = Array.from(sel.options).map(o => o.value);
+  const idx = keys.indexOf(sel.value);
+  const newIdx = Math.max(0, Math.min(keys.length - 1, idx + delta));
+  sel.value = keys[newIdx];
+  loadVerify();
+}
+
+function _vfEsc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function toggleVerifyCoach(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const arrow = document.getElementById(id + '_arrow');
+  if (el.style.display === 'none') {
+    el.style.display = '';
+    if (arrow) arrow.textContent = '▼';
+  } else {
+    el.style.display = 'none';
+    if (arrow) arrow.textContent = '▶';
+  }
+}
+
+// 逐項輸入時即時更新該教練的合計與狀態
+function updateVerifyRow(coachIdx) {
+  const inputs = document.querySelectorAll('.verify-cls-input[data-ci="' + coachIdx + '"]');
+  let adminTotal = 0, anyFilled = false, mismatchItems = 0;
+  inputs.forEach(function(inp) {
+    const v = inp.value.trim();
+    const self = parseFloat(inp.dataset.self) || 0;
+    if (v !== '') {
+      anyFilled = true;
+      const num = parseFloat(v) || 0;
+      adminTotal += num;
+      const diff = Math.round((num - self) * 10) / 10;
+      const stEl = document.getElementById('vfst_' + coachIdx + '_' + inp.dataset.idx);
+      if (stEl) {
+        if (diff === 0) stEl.innerHTML = '<span class="pill pill-ok">✓</span>';
+        else { stEl.innerHTML = '<span class="pill pill-danger">' + (diff > 0 ? '+' : '') + diff + '</span>'; mismatchItems++; }
+      }
+    } else {
+      const stEl = document.getElementById('vfst_' + coachIdx + '_' + inp.dataset.idx);
+      if (stEl) stEl.innerHTML = '<span class="pill pill-null">—</span>';
+      if (self > 0) mismatchItems++;
+    }
+  });
+  adminTotal = Math.round(adminTotal * 10) / 10;
+  const selfTotal = parseFloat(document.getElementById('vfself_' + coachIdx).dataset.total) || 0;
+  const totEl = document.getElementById('vftot_' + coachIdx);
+  const badgeEl = document.getElementById('vfbadge_' + coachIdx);
+  if (totEl) totEl.textContent = anyFilled ? adminTotal : '—';
+  if (badgeEl) {
+    if (!anyFilled) {
+      badgeEl.innerHTML = '<span class="pill pill-null">尚未核對</span>';
+    } else if (mismatchItems === 0 && adminTotal === selfTotal) {
+      badgeEl.innerHTML = '<span class="pill pill-ok">✅ 一致</span>';
+    } else {
+      const d = Math.round((adminTotal - selfTotal) * 10) / 10;
+      badgeEl.innerHTML = '<span class="pill pill-danger">⚠ ' + (mismatchItems > 0 ? mismatchItems + ' 項不符' : '') + (d !== 0 ? ' 總差' + (d > 0 ? '+' : '') + d : '') + '</span>';
+    }
+  }
+  refreshVerifyMetrics();
+}
+
+function refreshVerifyMetrics() {
+  let match = 0, mismatch = 0, pending = 0;
+  coaches.forEach(function(_, ci) {
+    const badgeEl = document.getElementById('vfbadge_' + ci);
+    if (!badgeEl) return;
+    const t = badgeEl.textContent || '';
+    if (t.indexOf('尚未核對') !== -1) pending++;
+    else if (t.indexOf('一致') !== -1) match++;
+    else mismatch++;
+  });
+  const mEl = document.getElementById('vf-match');
+  const xEl = document.getElementById('vf-mismatch');
+  const pEl = document.getElementById('vf-pending');
+  if (mEl) mEl.textContent = match;
+  if (xEl) xEl.textContent = mismatch;
+  if (pEl) pEl.textContent = pending;
+}
+
+async function loadVerify() {
+  const sel = document.getElementById('verify-period-sel');
+  if (!sel) return;
+  const key = sel.value || currentPeriodKey();
+  const box = document.getElementById('verify-list');
+  if (!box) return;
+  box.innerHTML = '<div style="text-align:center;padding:20px"><span class="spinner"></span> 載入中…</div>';
+
+  try {
+    const results = await Promise.all([fetchReports(key), fetchAdminVerify(key)]);
+    const reportData = results[0];
+    const verifyMap  = results[1];
+
+    // 統計各教練逐項自填堂數
+    const coachClassMap = {};
+    reportData.forEach(function(r) {
+      if (!coachClassMap[r.coach]) coachClassMap[r.coach] = {};
+      (r.classes || []).forEach(function(c) {
+        coachClassMap[r.coach][c.name] = (coachClassMap[r.coach][c.name] || 0) + (Number(c.count) || 0);
+      });
+    });
+
+    let html = '';
+    coaches.forEach(function(name, ci) {
+      const selfMap = coachClassMap[name] || {};
+      let selfTotal = 0;
+      Object.keys(selfMap).forEach(function(k) { selfTotal += selfMap[k]; });
+      selfTotal = Math.round(selfTotal * 10) / 10;
+
+      const rec = verifyMap[name];
+      const adminList = (rec && rec.classes) ? rec.classes : [];
+      const adminMap = {};
+      adminList.forEach(function(c) { adminMap[c.name] = c.count; });
+      const hasAdmin = adminList.length > 0;
+      let adminTotal = 0;
+      adminList.forEach(function(c) { adminTotal += (Number(c.count) || 0); });
+      adminTotal = Math.round(adminTotal * 10) / 10;
+      const noteVal = rec ? (rec.note || '') : '';
+
+      // 顯示項目 = 標準課程項目 + 教練自訂/行政額外填過的項目
+      const itemNames = courseTypes.slice();
+      Object.keys(selfMap).forEach(function(k) { if (itemNames.indexOf(k) === -1) itemNames.push(k); });
+      Object.keys(adminMap).forEach(function(k) { if (itemNames.indexOf(k) === -1) itemNames.push(k); });
+
+      // 計算整體狀態
+      let mismatchItems = 0;
+      itemNames.forEach(function(n2) {
+        const sv = selfMap[n2] || 0;
+        const av = adminMap.hasOwnProperty(n2) ? (Number(adminMap[n2]) || 0) : null;
+        if (av === null) { if (sv > 0 && hasAdmin) mismatchItems++; }
+        else if (Math.round((av - sv) * 10) / 10 !== 0) mismatchItems++;
+      });
+      let badge;
+      if (!hasAdmin) badge = '<span class="pill pill-null">尚未核對</span>';
+      else if (mismatchItems === 0 && adminTotal === selfTotal) badge = '<span class="pill pill-ok">✅ 一致</span>';
+      else {
+        const d = Math.round((adminTotal - selfTotal) * 10) / 10;
+        badge = '<span class="pill pill-danger">⚠ ' + (mismatchItems > 0 ? mismatchItems + ' 項不符' : '') + (d !== 0 ? ' 總差' + (d > 0 ? '+' : '') + d : '') + '</span>';
+      }
+
+      const bodyId = 'vfbody_' + ci;
+      // 逐項列
+      let itemRows = '';
+      itemNames.forEach(function(n2, idx) {
+        const sv = selfMap[n2] || 0;
+        const av = adminMap.hasOwnProperty(n2) ? adminMap[n2] : '';
+        let stHtml;
+        if (av === '' || av === null || av === undefined) stHtml = '<span class="pill pill-null">—</span>';
+        else {
+          const diff = Math.round(((Number(av) || 0) - sv) * 10) / 10;
+          stHtml = diff === 0 ? '<span class="pill pill-ok">✓</span>'
+                              : '<span class="pill pill-danger">' + (diff > 0 ? '+' : '') + diff + '</span>';
+        }
+        const isCustom = courseTypes.indexOf(n2) === -1;
+        itemRows +=
+          '<div style="display:grid;grid-template-columns:1fr 52px 74px 52px;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid var(--sand)">' +
+            '<div style="font-size:12px;line-height:1.3' + (isCustom ? ';color:#8a6d1a' : '') + '">' + (isCustom ? '⚠ ' : '') + _vfEsc(n2) + '</div>' +
+            '<div style="text-align:right;font-size:13px;font-weight:700;color:' + (sv > 0 ? 'var(--green-dark)' : '#ccc') + '">' + (sv > 0 ? sv : '—') + '</div>' +
+            '<input type="number" step="0.5" min="0" class="verify-cls-input" ' +
+              'data-ci="' + ci + '" data-idx="' + idx + '" data-coach="' + _vfEsc(name) + '" data-cls="' + _vfEsc(n2) + '" data-self="' + sv + '" ' +
+              'value="' + (av === '' ? '' : av) + '" oninput="updateVerifyRow(' + ci + ')" ' +
+              'style="width:100%;text-align:center;padding:5px;font-size:13px" placeholder="—">' +
+            '<div style="text-align:center" id="vfst_' + ci + '_' + idx + '">' + stHtml + '</div>' +
+          '</div>';
+      });
+
+      html +=
+        '<div style="border:1.5px solid var(--sand);border-radius:10px;margin-bottom:10px;overflow:hidden">' +
+          '<div onclick="toggleVerifyCoach(\'' + bodyId + '\')" style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;background:#fff">' +
+            '<span id="' + bodyId + '_arrow" style="font-size:11px;color:var(--text-muted);flex:none">▶</span>' +
+            '<span style="flex:1;font-weight:700;font-size:14px">' + _vfEsc(name) + '</span>' +
+            '<span style="font-size:12px;color:var(--text-muted);white-space:nowrap">自填 <b id="vfself_' + ci + '" data-total="' + selfTotal + '" style="color:var(--green-dark);font-size:14px">' + selfTotal + '</b>' +
+              ' ／ 行政 <b id="vftot_' + ci + '" style="color:var(--green-mid);font-size:14px">' + (hasAdmin ? adminTotal : '—') + '</b></span>' +
+            '<span id="vfbadge_' + ci + '" style="flex:none">' + badge + '</span>' +
+          '</div>' +
+          '<div id="' + bodyId + '" style="display:none;padding:8px 12px 12px;background:var(--cream)">' +
+            '<div style="display:grid;grid-template-columns:1fr 52px 74px 52px;gap:6px;padding-bottom:4px;border-bottom:2px solid var(--sand);font-size:10px;color:var(--text-muted);font-weight:700">' +
+              '<div>課程項目</div><div style="text-align:right">自填</div><div style="text-align:center">行政</div><div style="text-align:center">差異</div>' +
+            '</div>' +
+            itemRows +
+            '<div style="margin-top:10px">' +
+              '<label style="font-size:11px;color:var(--text-muted);font-weight:700;display:block;margin-bottom:3px">備註</label>' +
+              '<input type="text" class="verify-note-input" data-coach="' + _vfEsc(name) + '" value="' + _vfEsc(noteVal) + '" placeholder="差異原因說明（選填）" style="width:100%;padding:6px;font-size:12px">' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+    });
+
+    box.innerHTML = html || '<div class="empty-state"><div class="empty-icon">👥</div><p>尚無教練名單</p></div>';
+    refreshVerifyMetrics();
+  } catch(e) {
+    box.innerHTML = '<p style="color:var(--alert);font-size:13px">載入失敗：' + e.message + '</p>';
+  }
+}
+
+async function saveVerify() {
+  const sel = document.getElementById('verify-period-sel');
+  const key = sel ? sel.value : currentPeriodKey();
+
+  const byCoach = {};
+  document.querySelectorAll('.verify-cls-input').forEach(function(inp) {
+    const coach = inp.dataset.coach;
+    const cls   = inp.dataset.cls;
+    const v = inp.value.trim();
+    if (v === '') return;
+    if (!byCoach[coach]) byCoach[coach] = { classes: [], note: '' };
+    byCoach[coach].classes.push({ name: cls, count: parseFloat(v) || 0 });
+  });
+  document.querySelectorAll('.verify-note-input').forEach(function(inp) {
+    const coach = inp.dataset.coach;
+    const note = inp.value.trim();
+    if (!note) return;
+    if (!byCoach[coach]) byCoach[coach] = { classes: [], note: '' };
+    byCoach[coach].note = note;
+  });
+
+  const records = Object.keys(byCoach).map(function(coach) {
+    const total = byCoach[coach].classes.reduce(function(s, c) { return s + (c.count || 0); }, 0);
+    return {
+      coach: coach,
+      classes: byCoach[coach].classes,
+      adminCount: Math.round(total * 10) / 10,
+      note: byCoach[coach].note
+    };
+  });
+
+  const btn = document.getElementById('verify-save-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 儲存中…'; }
+
+  try {
+    await fetch(gasUrl, {
+      method: 'POST', mode: 'no-cors',
+      body: JSON.stringify({ type: 'admin_verify_batch', periodKey: key, records: records })
+    });
+    invalidateVerifyCache(key);
+    showToast('✅ 核對結果已儲存');
+    loadVerify();
+  } catch(e) {
+    showToast('❌ 儲存失敗：' + e.message);
+  }
+
+  if (btn) { btn.disabled = false; btn.innerHTML = '💾 儲存本期核對結果'; }
 }
 
 // ══════════════════════════════════════════
@@ -3190,7 +3609,9 @@ function showSyncStatus(success = true, label = '') {
     if (currentRole === 'coach' && currentCoach) {
       user.textContent = `｜👤 ${currentCoach}`;
     } else if (currentRole === 'admin') {
-      user.textContent = '｜🔧 管理員';
+      user.textContent = '｜👑 首席教練';
+    } else if (currentRole === 'verify') {
+      user.textContent = '｜🔍 行政';
     } else {
       user.textContent = '';
     }
